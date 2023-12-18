@@ -16,7 +16,7 @@ have the option to retry from the previous set of options. Occassionally, you ma
 
 You can play using the executable in the Release.zip folder.
 
-![Screenshot of gameplay](/Assets/gameStart.jpg)
+![Screenshot of gameplay](/Assets/gameStart.png)
 
 ## Acknowledgements
 A big thank you to the contributors at ASCII Art Archive! I utlized a few of their ASCII artworks as a starting point for some of the best ASCII art in the game!
