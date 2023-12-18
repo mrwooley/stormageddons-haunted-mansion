@@ -20,5 +20,5 @@ You can play using the executable in the Release.zip folder.
 
 ## Acknowledgements
 A big thank you to the contributors at ASCII Art Archive! I utlized a few of their ASCII artworks as a starting point for some of the best ASCII art in the game!
-Haunted House - Art by Joan G. Stark
-Cat - Art by Marcin Glinski
+* Haunted House - Art by Joan G. Stark
+* Cat - Art by Marcin Glinski
