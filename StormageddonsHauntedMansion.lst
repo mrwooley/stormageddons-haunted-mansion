@@ -1,0 +1,4012 @@
+Microsoft (R) Macro Assembler Version 14.29.30148.0	    12/18/23 11:56:29
+<Stormageddon's Haunted Mansion     (StormageddonsHauntedMan  Page 1 - 1
+
+
+				TITLE Stormageddon's Haunted Mansion     (StormageddonsHauntedMansion.asm)
+
+				; Author: Megan Wooley
+				; Last Modified: 5/21/2023
+				; Description: Text-based mystery game that takes you into a haunted mansion.
+
+				INCLUDE Irvine32.inc
+			      C ; Include file for Irvine32.lib             (Irvine32.inc)
+			      C 
+			      C ;OPTION CASEMAP:NONE		; optional: make identifiers case-sensitive
+			      C 
+			      C INCLUDE SmallWin.inc		; MS-Windows prototypes, structures, and constants
+			      C .NOLIST
+			      C .LIST
+			      C 
+			      C INCLUDE VirtualKeys.inc
+			      C ; VirtualKeys.inc
+			      C .NOLIST
+			      C .LIST
+			      C 
+			      C 
+			      C .NOLIST
+			      C .LIST
+			      C 
+
+				checkChoice MACRO lower_limit, upper_limit, choice
+					LOCAL _InvalidChoice, _Leave
+					cmp choice, lower_limit
+					jl _InvalidChoice
+					cmp choice, upper_limit
+					jg _InvalidChoice
+					jmp _Leave
+
+				_InvalidChoice:
+					mov choice, 0
+
+				_Leave:
+				ENDM
+
+				getKeyPress MACRO
+				LOCAL _LookForKey
+
+				_LookForKey:
+					mov EAX, 10
+					call Delay
+					call ReadKey
+					jz _LookForKey
+
+				ENDM
+
+				getCursorPos MACRO
+					push EAX
+					invoke GetStdHandle, STD_OUTPUT_HANDLE
+					mov hStdOut, EAX
+				    invoke GetConsoleScreenBufferInfo, hStdOut, ADDR CursorPos
+					pop EAX
+				ENDM
+
+
+ = 15				DEFAULT_DISPLAY			TEXTEQU %(15 + (0*16))			; Default: white text, black background	
+ = 2				OPTIONS_DISPLAY			TEXTEQU %(2 + (0*16))			; Title: green text, black background
+ = 9				DIALOGUE_DISPLAY		TEXTEQU %(9 + (0*16))			; Dialogue: lightBlue text, black background
+ = 12				FATAL_DISPLAY			TEXTEQU	%(12 + (0*16))			; Fatal: lightRed text, black background
+
+ = 00000FA0			ARRAY_SIZE = 4000
+ = 00000006			BUFFER_SIZE = 6
+ = 000004B0			DELAY_TIME = 1200
+ =-0000000B			STD_OUTPUT_HANDLE equ -11
+
+				COORD STRUCT
+				    X WORD ?
+				    Y WORD ?
+				COORD ENDS
+
+
+ 00000000			.data
+				; Special
+ 00000000 0000 0000 0000	CursorPos CONSOLE_SCREEN_BUFFER_INFO <>			
+	   0000 0000 0000
+	   0000 0000 0000
+	   0000 0000
+ 00000016 0000			cursorX											WORD			?
+ 00000018 0000			cursorY											WORD			?		
+ 0000001A 00000000		hStdOut											DWORD			?
+
+				; Prompts
+ 0000001E 59 6F 75 20 64	choice_prompt									BYTE			"You decide to: ",0
+	   65 63 69 64 65
+	   20 74 6F 3A 20
+	   00
+ 0000002E 59 6F 75 20 68	fatal_prompt									BYTE			"You have made a fatal choice. Would you like to try again (Y/N)? ",0
+	   61 76 65 20 6D
+	   61 64 65 20 61
+	   20 66 61 74 61
+	   6C 20 63 68 6F
+	   69 63 65 2E 20
+	   57 6F 75 6C 64
+	   20 79 6F 75 20
+	   6C 69 6B 65 20
+	   74 6F 20 74 72
+	   79 20 61 67 61
+	   69 6E 20 28 59
+	   2F 4E 29 3F 20
+	   00
+
+				; Files
+ 00000070 73 70 6C 61 73	splash_file										BYTE			"splashPage.txt",0
+	   68 50 61 67 65
+	   2E 74 78 74 00
+ 0000007F 6C 6F 67 69 6E	laptop_login_file								BYTE			"login.txt",0
+	   2E 74 78 74 00
+ 00000089 6C 61 70 74 6F	laptop_diary_file								BYTE			"laptopNote.txt",0
+	   70 4E 6F 74 65
+	   2E 74 78 74 00
+ 00000098 73 74 69 63 6B	sticky_note_file								BYTE			"stickyNote.txt",0
+	   79 4E 6F 74 65
+	   2E 74 78 74 00
+ 000000A7 63 61 74 50 6F	portrait_file									BYTE			"catPortrait.txt",0
+	   72 74 72 61 69
+	   74 2E 74 78 74
+	   00
+ 000000B7 63 61 74 50 6F	portrait_plate_file								BYTE			"catPortraitPlate.txt",0
+	   72 74 72 61 69
+	   74 50 6C 61 74
+	   65 2E 74 78 74
+	   00
+ 000000CC  00000FA0 [		txtArray										BYTE			ARRAY_SIZE DUP(0),0
+	    00
+	   ] 00
+ 0000106D 74 65 78 74 50	txtPuzzle										BYTE			"textPuzzle.txt",0
+	   75 7A 7A 6C 65
+	   2E 74 78 74 00
+ 0000107C 6F 75 69 6A 61	ouijaBoard										BYTE			"ouija.txt",0
+	   2E 74 78 74 00
+ 00001086 6F 75 69 6A 61	ouijaT											BYTE			"ouijaT.txt",0
+	   54 2E 74 78 74
+	   00
+ 00001091 6F 75 69 6A 61	ouijaO											BYTE			"ouijaO.txt",0
+	   4F 2E 74 78 74
+	   00
+ 0000109C 6F 75 69 6A 61	ouijaW											BYTE			"ouijaW.txt",0
+	   57 2E 74 78 74
+	   00
+ 000010A7 6F 75 69 6A 61	ouijaE											BYTE			"ouijaE.txt",0
+	   45 2E 74 78 74
+	   00
+ 000010B2 6F 75 69 6A 61	ouijaR											BYTE			"ouijaR.txt",0
+	   52 2E 74 78 74
+	   00
+ 000010BD 61 6E 6E 69 76	anniversaryNote									BYTE			"anniversaryNote.txt",0
+	   65 72 73 61 72
+	   79 4E 6F 74 65
+	   2E 74 78 74 00
+ 000010D1 63 61 70 74 61	captainBook										BYTE			"captainBook.txt",0
+	   69 6E 42 6F 6F
+	   6B 2E 74 78 74
+	   00
+ 000010E1 67 61 6D 65 4F	gameOver										BYTE			"gameOver.txt",0
+	   76 65 72 2E 74
+	   78 74 00
+
+				; Title
+				; Stormageddons haunted mansion: anniversary edition splash page
+ 000010EE 49 4E 53 54 52	instructions									BYTE			"INSTRUCTIONS",13,10,
+	   55 43 54 49 4F
+	   4E 53 0D 0A 2D
+	   2D 2D 2D 2D 2D
+	   2D 2D 2D 2D 2D
+	   2D 0D 0A 53 74
+	   6F 72 6D 61 67
+	   65 64 64 6F 6E
+	   27 73 20 48 61
+	   75 6E 74 65 64
+	   20 4D 61 6E 73
+	   69 6F 6E 20 69
+	   73 20 61 20 74
+	   65 78 74 2D 62
+	   61 73 65 64 20
+	   61 64 76 65 6E
+	   74 75 72 65 2C
+	   20 6D 79 73 74
+	   65 72 79 20 67
+	   61 6D 65 2E 20
+	   4E 75 6D 62 65
+	   72 65 64 20 6F
+	   70 74 69 6F 6E
+	   73 20 77 69 6C
+	   6C 20 70 72 6F
+	   6D 70 74 20 79
+	   6F 75 20 74 6F
+	   20 65 6E 74 65
+	   72 0D 0A 74 68
+	   65 20 6E 75 6D
+	   62 65 72 20 63
+	   6F 72 72 65 73
+	   70 6F 6E 64 69
+	   6E 67 20 74 6F
+	   20 79 6F 75 72
+	   20 61 63 74 69
+	   6F 6E 20 6F 66
+	   20 63 68 6F 69
+	   63 65 2E 20 41
+	   6E 79 20 74 65
+	   78 74 20 62 61
+	   73 65 64 20 70
+	   72 6F 6D 70 74
+	   73 20 73 68 6F
+	   75 6C 64 20 62
+	   65 20 65 6E 74
+	   65 72 65 64 20
+	   69 6E 20 6C 6F
+	   77 65 72 2D 63
+	   61 73 65 2E 0D
+	   0A 48 61 76 65
+	   20 66 75 6E 21
+	   0D 0A 0D 0A 00
+																				"------------",13,10,
+																				"Stormageddon's Haunted Mansion is a text-based adventure, mystery game. Numbered options will prompt you to enter",13,10,
+																				"the number corresponding to your action of choice. Any text based prompts should be entered in lower-case.",13,10,
+																				"Have fun!",13,10,13,10,0
+
+ 000011F7 59 6F 75 20 66	introduction                                    BYTE			"You find yourself standing before an ominous house following the receipt of an enigmatic letter. The letter asks",13,10,
+	   69 6E 64 20 79
+	   6F 75 72 73 65
+	   6C 66 20 73 74
+	   61 6E 64 69 6E
+	   67 20 62 65 66
+	   6F 72 65 20 61
+	   6E 20 6F 6D 69
+	   6E 6F 75 73 20
+	   68 6F 75 73 65
+	   20 66 6F 6C 6C
+	   6F 77 69 6E 67
+	   20 74 68 65 20
+	   72 65 63 65 69
+	   70 74 20 6F 66
+	   20 61 6E 20 65
+	   6E 69 67 6D 61
+	   74 69 63 20 6C
+	   65 74 74 65 72
+	   2E 20 54 68 65
+	   20 6C 65 74 74
+	   65 72 20 61 73
+	   6B 73 0D 0A 79
+	   6F 75 20 74 6F
+	   20 6D 65 65 74
+	   20 61 6E 20 75
+	   6E 6B 6E 6F 77
+	   6E 20 69 6E 64
+	   69 76 69 64 75
+	   61 6C 20 61 74
+	   20 74 68 69 73
+	   20 6C 6F 63 61
+	   74 69 6F 6E 2E
+	   20 57 68 79 20
+	   79 6F 75 20 61
+	   63 74 75 61 6C
+	   6C 79 20 63 61
+	   6D 65 20 69 73
+	   20 75 6E 63 6C
+	   65 61 72 2C 20
+	   62 75 74 20 79
+	   6F 75 20 61 72
+	   65 20 68 65 72
+	   65 20 6E 6F 77
+	   20 61 6E 64 0D
+	   0A 73 6F 6D 65
+	   74 68 69 6E 67
+	   20 61 62 6F 75
+	   74 20 74 68 65
+	   20 68 6F 75 73
+	   65 20 6D 61 6B
+	   65 73 20 79 6F
+	   75 20 77 61 6E
+	   74 20 74 6F 20
+	   67 6F 20 69 6E
+	   2E 2E 2E 00
+																				"you to meet an unknown individual at this location. Why you actually came is unclear, but you are here now and",13,10,
+																				"something about the house makes you want to go in...",0
+
+				; Level 0: Outside of the house ----------------
+ 0000130E 59 6F 75 20 61	level0_options0									BYTE			"You are standing in front of a house.",13,10,13,10,
+	   72 65 20 73 74
+	   61 6E 64 69 6E
+	   67 20 69 6E 20
+	   66 72 6F 6E 74
+	   20 6F 66 20 61
+	   20 68 6F 75 73
+	   65 2E 0D 0A 0D
+	   0A 31 2E 20 4C
+	   6F 6F 6B 20 61
+	   74 20 74 68 65
+	   20 72 6F 61 64
+	   20 74 6F 20 74
+	   68 65 20 6C 65
+	   66 74 0D 0A 32
+	   2E 20 4C 6F 6F
+	   6B 20 61 74 20
+	   74 68 65 20 72
+	   6F 61 64 20 74
+	   6F 20 74 68 65
+	   20 72 69 67 68
+	   74 0D 0A 33 2E
+	   20 4D 6F 76 65
+	   20 74 6F 20 74
+	   68 65 20 66 72
+	   6F 6E 74 20 64
+	   6F 6F 72 0D 0A
+	   00
+																				"1. Look at the road to the left",13,10,
+																				"2. Look at the road to the right",13,10,
+																				"3. Move to the front door",13,10,0
+
+ 00001396 42 45 45 45 45	level0_options0_choice1_options					BYTE			"BEEEEEEEEP BEEEP BEEEEEEP BEEP BEEEEEEEEEEEEEEEEEEEEEEEEEEP",13,10,13,10,
+	   45 45 45 45 50
+	   20 42 45 45 45
+	   50 20 42 45 45
+	   45 45 45 45 50
+	   20 42 45 45 50
+	   20 42 45 45 45
+	   45 45 45 45 45
+	   45 45 45 45 45
+	   45 45 45 45 45
+	   45 45 45 45 45
+	   45 45 45 50 0D
+	   0A 0D 0A 31 2E
+	   20 4D 6F 76 65
+	   20 74 6F 77 61
+	   72 64 73 20 74
+	   68 65 20 63 61
+	   72 0D 0A 32 2E
+	   20 47 6F 20 62
+	   61 63 6B 20 74
+	   6F 20 68 6F 75
+	   73 65 0D 0A 00
+																				"1. Move towards the car",13,10,
+																				"2. Go back to house",13,10,0
+ 00001404 42 45 45 45 45	level0_options0_options1_choice1_dialogue		BYTE			"BEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEP",13,10,0
+	   45 45 45 45 45
+	   45 45 45 45 45
+	   45 45 45 45 45
+	   45 45 45 45 45
+	   45 45 45 45 45
+	   45 45 45 45 45
+	   45 45 45 45 45
+	   45 45 45 45 45
+	   45 50 0D 0A 00
+ 00001436 59 6F 75 20 73	level0_options0_choice2_dialogue				BYTE			"You see a never ending stream of bicyclists. No way you are getting past that.",13,10,0
+	   65 65 20 61 20
+	   6E 65 76 65 72
+	   20 65 6E 64 69
+	   6E 67 20 73 74
+	   72 65 61 6D 20
+	   6F 66 20 62 69
+	   63 79 63 6C 69
+	   73 74 73 2E 20
+	   4E 6F 20 77 61
+	   79 20 79 6F 75
+	   20 61 72 65 20
+	   67 65 74 74 69
+	   6E 67 20 70 61
+	   73 74 20 74 68
+	   61 74 2E 0D 0A
+	   00
+
+				; Level 1: At front door -----------------------
+ 00001487 0000			level1_keyFound									WORD			0
+
+ 00001489 59 6F 75 20 61	level1_options0									BYTE			"You are standing in front of the front door.",13,10,13,10,
+	   72 65 20 73 74
+	   61 6E 64 69 6E
+	   67 20 69 6E 20
+	   66 72 6F 6E 74
+	   20 6F 66 20 74
+	   68 65 20 66 72
+	   6F 6E 74 20 64
+	   6F 6F 72 2E 0D
+	   0A 0D 0A 31 2E
+	   20 4F 70 65 6E
+	   20 64 6F 6F 72
+	   0D 0A 32 2E 20
+	   4C 6F 6F 6B 20
+	   61 72 6F 75 6E
+	   64 20 64 6F 6F
+	   72 0D 0A 00
+																				"1. Open door",13,10,
+																				"2. Look around door",13,10,0
+																				
+ 000014DD 49 74 20 69 73	level1_options0_choice1_noKey					BYTE			"It is locked. There must be a key around here somewhere...",13,10,0
+	   20 6C 6F 63 6B
+	   65 64 2E 20 54
+	   68 65 72 65 20
+	   6D 75 73 74 20
+	   62 65 20 61 20
+	   6B 65 79 20 61
+	   72 6F 75 6E 64
+	   20 68 65 72 65
+	   20 73 6F 6D 65
+	   77 68 65 72 65
+	   2E 2E 2E 0D 0A
+	   00
+ 0000151A 59 6F 75 20 73	level1_options0_choice1_key						BYTE			"You shimmy the card between the door and frame and push.",13,10,0
+	   68 69 6D 6D 79
+	   20 74 68 65 20
+	   63 61 72 64 20
+	   62 65 74 77 65
+	   65 6E 20 74 68
+	   65 20 64 6F 6F
+	   72 20 61 6E 64
+	   20 66 72 61 6D
+	   65 20 61 6E 64
+	   20 70 75 73 68
+	   2E 0D 0A 00
+ 00001555 59 6F 75 20 73	level1_options0_choice2_options					BYTE			"You see a small potted plant to the left of the door and a door mat in front of the door.",13,10,13,10,
+	   65 65 20 61 20
+	   73 6D 61 6C 6C
+	   20 70 6F 74 74
+	   65 64 20 70 6C
+	   61 6E 74 20 74
+	   6F 20 74 68 65
+	   20 6C 65 66 74
+	   20 6F 66 20 74
+	   68 65 20 64 6F
+	   6F 72 20 61 6E
+	   64 20 61 20 64
+	   6F 6F 72 20 6D
+	   61 74 20 69 6E
+	   20 66 72 6F 6E
+	   74 20 6F 66 20
+	   74 68 65 20 64
+	   6F 6F 72 2E 0D
+	   0A 0D 0A 31 2E
+	   20 53 65 61 72
+	   63 68 20 74 68
+	   65 20 70 6C 61
+	   6E 74 0D 0A 32
+	   2E 20 4C 69 66
+	   74 20 74 68 65
+	   20 6D 61 74 0D
+	   0A 00
+																				"1. Search the plant",13,10,
+																				"2. Lift the mat",13,10,0
+ 000015D9 57 68 6F 20 70	level1_options0_options2_choice1_dialogue		BYTE			"Who puts poison ivy in a pot???",13,10,0
+	   75 74 73 20 70
+	   6F 69 73 6F 6E
+	   20 69 76 79 20
+	   69 6E 20 61 20
+	   70 6F 74 3F 3F
+	   3F 0D 0A 00
+ 000015FB 59 6F 75 20 66	level1_options0_options2_choice2_dialogue		BYTE			"You find a thin card about the size of a credit card.",13,10,0
+	   69 6E 64 20 61
+	   20 74 68 69 6E
+	   20 63 61 72 64
+	   20 61 62 6F 75
+	   74 20 74 68 65
+	   20 73 69 7A 65
+	   20 6F 66 20 61
+	   20 63 72 65 64
+	   69 74 20 63 61
+	   72 64 2E 0D 0A
+	   00
+
+				; Level 2: Living Room -------------------------
+ 00001633 00020410		level2_password									DWORD			132112
+ 00001637 00			level2_diaryFound								BYTE			0
+ 00001638 00			level2_flashlightFound							BYTE			0
+
+				; Level 2a: Open door 
+ 00001639 41 73 20 79 6F	level2_options0									BYTE			"As you creak open the door, you see a small, dark figure skitter across the floor...",13,10,13,10,
+	   75 20 63 72 65
+	   61 6B 20 6F 70
+	   65 6E 20 74 68
+	   65 20 64 6F 6F
+	   72 2C 20 79 6F
+	   75 20 73 65 65
+	   20 61 20 73 6D
+	   61 6C 6C 2C 20
+	   64 61 72 6B 20
+	   66 69 67 75 72
+	   65 20 73 6B 69
+	   74 74 65 72 20
+	   61 63 72 6F 73
+	   73 20 74 68 65
+	   20 66 6C 6F 6F
+	   72 2E 2E 2E 0D
+	   0A 0D 0A 31 2E
+	   20 43 6F 6E 74
+	   69 6E 75 65 20
+	   74 6F 20 6F 70
+	   65 6E 20 74 68
+	   65 20 64 6F 6F
+	   72 0D 0A 32 2E
+	   20 46 72 65 65
+	   7A 65 0D 0A 00
+																				"1. Continue to open the door",13,10,
+																				"2. Freeze",13,10,0
+ 000016BB 59 6F 75 20 62	level2_options0_choice1_dialgoue				BYTE			"You bravely push the door fully open. Light fills the room and you see a small, black cat staring cautiously at you.",13,10,0	
+	   72 61 76 65 6C
+	   79 20 70 75 73
+	   68 20 74 68 65
+	   20 64 6F 6F 72
+	   20 66 75 6C 6C
+	   79 20 6F 70 65
+	   6E 2E 20 4C 69
+	   67 68 74 20 66
+	   69 6C 6C 73 20
+	   74 68 65 20 72
+	   6F 6F 6D 20 61
+	   6E 64 20 79 6F
+	   75 20 73 65 65
+	   20 61 20 73 6D
+	   61 6C 6C 2C 20
+	   62 6C 61 63 6B
+	   20 63 61 74 20
+	   73 74 61 72 69
+	   6E 67 20 63 61
+	   75 74 69 6F 75
+	   73 6C 79 20 61
+	   74 20 79 6F 75
+	   2E 0D 0A 00
+ 00001732 59 6F 75 20 66	level2_options0_choice2_dialgoue				BYTE			"You freeze in fear and stay perfectly still. You cautiously peer through the barely open door and, to your horror,",13,10,
+	   72 65 65 7A 65
+	   20 69 6E 20 66
+	   65 61 72 20 61
+	   6E 64 20 73 74
+	   61 79 20 70 65
+	   72 66 65 63 74
+	   6C 79 20 73 74
+	   69 6C 6C 2E 20
+	   59 6F 75 20 63
+	   61 75 74 69 6F
+	   75 73 6C 79 20
+	   70 65 65 72 20
+	   74 68 72 6F 75
+	   67 68 20 74 68
+	   65 20 62 61 72
+	   65 6C 79 20 6F
+	   70 65 6E 20 64
+	   6F 6F 72 20 61
+	   6E 64 2C 20 74
+	   6F 20 79 6F 75
+	   72 20 68 6F 72
+	   72 6F 72 2C 0D
+	   0A 79 6F 75 20
+	   73 65 65 20 61
+	   20 73 6D 61 6C
+	   6C 2C 20 62 6C
+	   61 63 6B 20 63
+	   61 74 20 72 6F
+	   6C 6C 69 6E 67
+	   20 61 64 6F 72
+	   61 62 6C 79 20
+	   6F 6E 20 74 68
+	   65 20 66 6C 6F
+	   6F 72 2E 0D 0A
+	   00
+																				"you see a small, black cat rolling adorably on the floor.",13,10,0
+
+				; Level 2b
+ 000017E2 59 6F 75 20 66	level2_options1									BYTE			"You find yourself in a small living room. Inside, you see the cat on the carpet in front of you, a desk to your left,",13,10,
+	   69 6E 64 20 79
+	   6F 75 72 73 65
+	   6C 66 20 69 6E
+	   20 61 20 73 6D
+	   61 6C 6C 20 6C
+	   69 76 69 6E 67
+	   20 72 6F 6F 6D
+	   2E 20 49 6E 73
+	   69 64 65 2C 20
+	   79 6F 75 20 73
+	   65 65 20 74 68
+	   65 20 63 61 74
+	   20 6F 6E 20 74
+	   68 65 20 63 61
+	   72 70 65 74 20
+	   69 6E 20 66 72
+	   6F 6E 74 20 6F
+	   66 20 79 6F 75
+	   2C 20 61 20 64
+	   65 73 6B 20 74
+	   6F 20 79 6F 75
+	   72 20 6C 65 66
+	   74 2C 0D 0A 61
+	   6E 64 2C 20 61
+	   74 20 74 68 65
+	   20 65 6E 64 20
+	   6F 66 20 74 68
+	   65 20 72 6F 6F
+	   6D 2C 20 61 6E
+	   20 6F 70 65 6E
+	   69 6E 67 20 74
+	   6F 20 61 20 64
+	   61 72 6B 20 68
+	   61 6C 6C 77 61
+	   79 2E 20 0D 0A
+	   0D 0A 31 2E 20
+	   54 72 79 20 66
+	   6C 69 70 70 69
+	   6E 67 20 74 68
+	   65 20 6C 69 67
+	   68 74 20 73 77
+	   69 74 63 68 20
+	   74 6F 20 79 6F
+	   75 72 20 6C 65
+	   66 74 0D 0A 32
+	   2E 20 47 6F 20
+	   6C 65 66 74 20
+	   74 6F 77 61 72
+	   64 73 20 74 68
+	   65 20 64 65 73
+	   6B 0D 0A 33 2E
+	   20 47 6F 20 66
+	   6F 72 77 61 72
+	   64 20 74 6F 77
+	   61 72 64 73 20
+	   74 68 65 20 63
+	   61 74 0D 0A 34
+	   2E 20 4D 6F 76
+	   65 20 61 63 72
+	   6F 73 73 20 74
+	   68 65 20 72 6F
+	   6F 6D 20 74 6F
+	   20 74 68 65 20
+	   68 61 6C 6C 77
+	   61 79 0D 0A 00
+																				"and, at the end of the room, an opening to a dark hallway. ",13,10,13,10,
+																				"1. Try flipping the light switch to your left",13,10,
+																				"2. Go left towards the desk",13,10,
+																				"3. Go forward towards the cat",13,10,
+																				"4. Move across the room to the hallway",13,10,0
+				; room light
+ 0000192C 54 68 65 20 72	level2_options1_choice1_dialogue				BYTE			"The room stays dark. Seems like the light is out.",13,10,0
+	   6F 6F 6D 20 73
+	   74 61 79 73 20
+	   64 61 72 6B 2E
+	   20 53 65 65 6D
+	   73 20 6C 69 6B
+	   65 20 74 68 65
+	   20 6C 69 67 68
+	   74 20 69 73 20
+	   6F 75 74 2E 0D
+	   0A 00
+				; desk
+ 00001960 4F 6E 20 74 68	level2_options1_options2						BYTE			"On the desk is an open laptop.",13,10,13,10,
+	   65 20 64 65 73
+	   6B 20 69 73 20
+	   61 6E 20 6F 70
+	   65 6E 20 6C 61
+	   70 74 6F 70 2E
+	   0D 0A 0D 0A 31
+	   2E 20 50 72 65
+	   73 73 20 61 20
+	   6B 65 79 20 6F
+	   6E 20 74 68 65
+	   20 6C 61 70 74
+	   6F 70 0D 0A 32
+	   2E 20 4C 6F 6F
+	   6B 20 61 72 6F
+	   75 6E 64 20 64
+	   65 73 6B 0D 0A
+	   33 2E 20 53 65
+	   61 72 63 68 20
+	   64 72 61 77 65
+	   72 73 0D 0A 34
+	   2E 20 47 6F 20
+	   62 61 63 6B 20
+	   74 6F 20 6C 6F
+	   6F 6B 69 6E 67
+	   20 61 72 6F 75
+	   6E 64 20 6C 69
+	   76 69 6E 67 20
+	   72 6F 6F 6D 0D
+	   0A 00
+																				"1. Press a key on the laptop",13,10,
+																				"2. Look around desk",13,10,
+																				"3. Search drawers",13,10,
+																				"4. Go back to looking around living room",13,10,0
+				; laptop
+ 000019F3 54 68 65 20 6C	level2_options1_options2_choice1_dialogue		BYTE			"The laptop screen lights up.",13,10,0
+	   61 70 74 6F 70
+	   20 73 63 72 65
+	   65 6E 20 6C 69
+	   67 68 74 73 20
+	   75 70 2E 0D 0A
+	   00
+ 00001A12 31 2E 54 72 79	level2_options1_options2_options1				BYTE			"1.Try entering a password.",13,10,
+	   20 65 6E 74 65
+	   72 69 6E 67 20
+	   61 20 70 61 73
+	   73 77 6F 72 64
+	   2E 0D 0A 32 2E
+	   20 47 6F 20 62
+	   61 63 6B 20 74
+	   6F 20 64 65 73
+	   6B 0D 0A 00
+																				"2. Go back to desk",13,10,0
+ 00001A43 00000000		level2_options1_options2_choice1_enterPassword	DWORD			?
+ 00001A47 57 52 4F 4E 47	level2_options1_options2_choice1_badPassword	BYTE			"WRONG PASSWORD",13,10,0
+	   20 50 41 53 53
+	   57 4F 52 44 0D
+	   0A 00
+ 00001A58 20 20 20 20 20	level2_options1_options2_choice1_clear			BYTE			"              ",13,10,0
+	   20 20 20 20 20
+	   20 20 20 20 0D
+	   0A 00
+
+				; desk search
+ 00001A69 4A 75 73 74 20	level2_options1_options2_choice2_dialogue		BYTE			"Just the laptop and a bunch of crumpled paper towels?",13,10,0
+	   74 68 65 20 6C
+	   61 70 74 6F 70
+	   20 61 6E 64 20
+	   61 20 62 75 6E
+	   63 68 20 6F 66
+	   20 63 72 75 6D
+	   70 6C 65 64 20
+	   70 61 70 65 72
+	   20 74 6F 77 65
+	   6C 73 3F 0D 0A
+	   00
+ 00001AA1 59 6F 75 20 66	level2_options1_options2_choice3_dialogue		BYTE			"You find a flashlight. This might come in handy.",13,10,0
+	   69 6E 64 20 61
+	   20 66 6C 61 73
+	   68 6C 69 67 68
+	   74 2E 20 54 68
+	   69 73 20 6D 69
+	   67 68 74 20 63
+	   6F 6D 65 20 69
+	   6E 20 68 61 6E
+	   64 79 2E 0D 0A
+	   00
+				; cat
+ 00001AD4 54 68 65 20 63	level2_options1_options3						BYTE			"The cat continues to roll on its back adorably.",13,10,13,10,
+	   61 74 20 63 6F
+	   6E 74 69 6E 75
+	   65 73 20 74 6F
+	   20 72 6F 6C 6C
+	   20 6F 6E 20 69
+	   74 73 20 62 61
+	   63 6B 20 61 64
+	   6F 72 61 62 6C
+	   79 2E 0D 0A 0D
+	   0A 31 2E 20 47
+	   69 76 65 20 73
+	   6F 6D 65 20 73
+	   63 72 69 74 63
+	   68 65 73 20 62
+	   65 68 69 6E 64
+	   20 68 69 73 20
+	   65 61 72 73 0D
+	   0A 32 2E 20 50
+	   69 63 6B 20 68
+	   69 6D 20 75 70
+	   0D 0A 33 2E 20
+	   49 6E 70 65 63
+	   74 20 70 61 77
+	   73 0D 0A 34 2E
+	   20 47 6F 20 62
+	   61 63 6B 20 74
+	   6F 20 6C 6F 6F
+	   6B 69 6E 67 20
+	   61 72 6F 75 6E
+	   64 20 6C 69 76
+	   69 6E 67 20 72
+	   6F 6F 6D 0D 0A
+	   00
+																				"1. Give some scritches behind his ears",13,10,
+																				"2. Pick him up",13,10,
+																				"3. Inpect paws",13,10,
+																				"4. Go back to looking around living room",13,10,0
+ 00001B7A 54 68 65 20 63	level2_options1_options3_options1				BYTE			"The cat purrs happily. You notice a little pink paper behind his head.",13,10,13,10,
+	   61 74 20 70 75
+	   72 72 73 20 68
+	   61 70 70 69 6C
+	   79 2E 20 59 6F
+	   75 20 6E 6F 74
+	   69 63 65 20 61
+	   20 6C 69 74 74
+	   6C 65 20 70 69
+	   6E 6B 20 70 61
+	   70 65 72 20 62
+	   65 68 69 6E 64
+	   20 68 69 73 20
+	   68 65 61 64 2E
+	   0D 0A 0D 0A 31
+	   2E 20 47 72 61
+	   62 20 70 69 6E
+	   6B 20 70 61 70
+	   65 72 0D 0A 00
+																				"1. Grab pink paper",13,10,0
+ 00001BD9 54 68 65 20 63	level2_options1_options3_choice2_dialogue		BYTE			"The cat, once cute and sweet, narrows its eyes as his ears fold back. Claws and teeth are all you see before",13,10,
+	   61 74 2C 20 6F
+	   6E 63 65 20 63
+	   75 74 65 20 61
+	   6E 64 20 73 77
+	   65 65 74 2C 20
+	   6E 61 72 72 6F
+	   77 73 20 69 74
+	   73 20 65 79 65
+	   73 20 61 73 20
+	   68 69 73 20 65
+	   61 72 73 20 66
+	   6F 6C 64 20 62
+	   61 63 6B 2E 20
+	   43 6C 61 77 73
+	   20 61 6E 64 20
+	   74 65 65 74 68
+	   20 61 72 65 20
+	   61 6C 6C 20 79
+	   6F 75 20 73 65
+	   65 20 62 65 66
+	   6F 72 65 0D 0A
+	   65 76 65 72 79
+	   74 68 69 6E 67
+	   20 67 6F 65 73
+	   20 62 6C 61 63
+	   6B 2E 0D 0A 00
+																				"everything goes black.",13,10,0
+ 00001C60 54 6F 65 20 62	level2_options1_options3_choice3_dialogue		BYTE			"Toe beans!",13,10,0
+	   65 61 6E 73 21
+	   0D 0A 00
+				; hallway
+ 00001C6D 54 68 65 20 68	level2_options1_choice4_noFlashlight			BYTE			"The hallway is pitch black, far darker than it should be. You hear the cat hiss towards the hallway from behind you.",13,10,
+	   61 6C 6C 77 61
+	   79 20 69 73 20
+	   70 69 74 63 68
+	   20 62 6C 61 63
+	   6B 2C 20 66 61
+	   72 20 64 61 72
+	   6B 65 72 20 74
+	   68 61 6E 20 69
+	   74 20 73 68 6F
+	   75 6C 64 20 62
+	   65 2E 20 59 6F
+	   75 20 68 65 61
+	   72 20 74 68 65
+	   20 63 61 74 20
+	   68 69 73 73 20
+	   74 6F 77 61 72
+	   64 73 20 74 68
+	   65 20 68 61 6C
+	   6C 77 61 79 20
+	   66 72 6F 6D 20
+	   62 65 68 69 6E
+	   64 20 79 6F 75
+	   2E 0D 0A 4E 6F
+	   20 77 61 79 20
+	   61 72 65 20 79
+	   6F 75 20 67 6F
+	   69 6E 67 20 74
+	   68 69 73 20 77
+	   61 79 20 77 69
+	   74 68 6F 75 74
+	   20 73 6F 6D 65
+	   20 6B 69 6E 64
+	   20 6F 66 20 6C
+	   69 67 68 74 2E
+	   0D 0A 00
+																				"No way are you going this way without some kind of light.",13,10,0
+ 00001D1F 59 6F 75 20 62	level2_options1_choice4_noDiary					BYTE			"You begin to move towards the hallway, but you are itching to know what is on that laptop.",13,10,0
+	   65 67 69 6E 20
+	   74 6F 20 6D 6F
+	   76 65 20 74 6F
+	   77 61 72 64 73
+	   20 74 68 65 20
+	   68 61 6C 6C 77
+	   61 79 2C 20 62
+	   75 74 20 79 6F
+	   75 20 61 72 65
+	   20 69 74 63 68
+	   69 6E 67 20 74
+	   6F 20 6B 6E 6F
+	   77 20 77 68 61
+	   74 20 69 73 20
+	   6F 6E 20 74 68
+	   61 74 20 6C 61
+	   70 74 6F 70 2E
+	   0D 0A 00
+ 00001D7C 59 6F 75 20 73	level2_options1_choice4_nextLevel				BYTE			"You switch on the flashlight and the once dark hallway is illumintated. In the light, it is far less creepy than you",13,10,
+	   77 69 74 63 68
+	   20 6F 6E 20 74
+	   68 65 20 66 6C
+	   61 73 68 6C 69
+	   67 68 74 20 61
+	   6E 64 20 74 68
+	   65 20 6F 6E 63
+	   65 20 64 61 72
+	   6B 20 68 61 6C
+	   6C 77 61 79 20
+	   69 73 20 69 6C
+	   6C 75 6D 69 6E
+	   74 61 74 65 64
+	   2E 20 49 6E 20
+	   74 68 65 20 6C
+	   69 67 68 74 2C
+	   20 69 74 20 69
+	   73 20 66 61 72
+	   20 6C 65 73 73
+	   20 63 72 65 65
+	   70 79 20 74 68
+	   61 6E 20 79 6F
+	   75 0D 0A 65 78
+	   70 65 63 74 65
+	   64 2E 20 59 6F
+	   75 20 6C 6F 6F
+	   6B 20 62 61 63
+	   6B 20 61 74 20
+	   74 68 65 20 63
+	   61 74 20 77 68
+	   6F 20 69 73 20
+	   6E 6F 77 20 65
+	   61 67 61 72 6C
+	   79 20 66 6F 6C
+	   6C 6F 77 69 6E
+	   67 2E 0D 0A 00
+																				"expected. You look back at the cat who is now eagarly following.",13,10,0
+
+				; Level 3: Hallway -----------------------------
+ 00001E35 00			level3_bookFound								BYTE			0
+ 00001E36 00			level3_nameFound								BYTE			0
+ 00001E37 00			level3_doorFound								BYTE			0
+
+ 00001E38 54 68 65 20 68	level3_options0									BYTE			"The hallway has two rooms, one to the left and one to the right. At the very end of the hallway appears to be some kind",13,10,
+	   61 6C 6C 77 61
+	   79 20 68 61 73
+	   20 74 77 6F 20
+	   72 6F 6F 6D 73
+	   2C 20 6F 6E 65
+	   20 74 6F 20 74
+	   68 65 20 6C 65
+	   66 74 20 61 6E
+	   64 20 6F 6E 65
+	   20 74 6F 20 74
+	   68 65 20 72 69
+	   67 68 74 2E 20
+	   41 74 20 74 68
+	   65 20 76 65 72
+	   79 20 65 6E 64
+	   20 6F 66 20 74
+	   68 65 20 68 61
+	   6C 6C 77 61 79
+	   20 61 70 70 65
+	   61 72 73 20 74
+	   6F 20 62 65 20
+	   73 6F 6D 65 20
+	   6B 69 6E 64 0D
+	   0A 6F 66 20 70
+	   61 69 6E 74 69
+	   6E 67 2E 0D 0A
+	   0D 0A 31 2E 20
+	   54 72 79 20 74
+	   68 65 20 64 6F
+	   6F 72 20 74 6F
+	   20 74 68 65 20
+	   6C 65 66 74 0D
+	   0A 32 2E 20 54
+	   72 79 20 74 68
+	   65 20 64 6F 6F
+	   72 20 74 6F 20
+	   74 68 65 20 72
+	   69 67 68 74 0D
+	   0A 33 2E 20 49
+	   6E 73 70 65 63
+	   74 20 74 68 65
+	   20 70 61 69 6E
+	   74 69 6E 67 0D
+	   0A 00
+																				"of painting.",13,10,13,10,
+																				"1. Try the door to the left",13,10,
+																				"2. Try the door to the right",13,10,
+																				"3. Inspect the painting",13,10,0	
+				; Closet
+ 00001F16 4A 75 73 74 20	level3_options0_choice1_noDoor					BYTE			"Just a small coat closet. Nothing too interesting.",13,10,0
+	   61 20 73 6D 61
+	   6C 6C 20 63 6F
+	   61 74 20 63 6C
+	   6F 73 65 74 2E
+	   20 4E 6F 74 68
+	   69 6E 67 20 74
+	   6F 6F 20 69 6E
+	   74 65 72 65 73
+	   74 69 6E 67 2E
+	   0D 0A 00
+ 00001F4B 59 6F 75 20 70	level3_options0_choice1_secretDoor				BYTE			"You push the coats aside and discover a hidden door with stairs that lead down into a dark basement.",13,10,0
+	   75 73 68 20 74
+	   68 65 20 63 6F
+	   61 74 73 20 61
+	   73 69 64 65 20
+	   61 6E 64 20 64
+	   69 73 63 6F 76
+	   65 72 20 61 20
+	   68 69 64 64 65
+	   6E 20 64 6F 6F
+	   72 20 77 69 74
+	   68 20 73 74 61
+	   69 72 73 20 74
+	   68 61 74 20 6C
+	   65 61 64 20 64
+	   6F 77 6E 20 69
+	   6E 74 6F 20 61
+	   20 64 61 72 6B
+	   20 62 61 73 65
+	   6D 65 6E 74 2E
+	   0D 0A 00
+
+				; Study
+ 00001FB2 59 6F 75 20 77	level3_options0_choice2_options					BYTE			"You walk into a small study.There is a small armchair and lamp to your right and a bookcase to your left.",13,10,13,10,
+	   61 6C 6B 20 69
+	   6E 74 6F 20 61
+	   20 73 6D 61 6C
+	   6C 20 73 74 75
+	   64 79 2E 54 68
+	   65 72 65 20 69
+	   73 20 61 20 73
+	   6D 61 6C 6C 20
+	   61 72 6D 63 68
+	   61 69 72 20 61
+	   6E 64 20 6C 61
+	   6D 70 20 74 6F
+	   20 79 6F 75 72
+	   20 72 69 67 68
+	   74 20 61 6E 64
+	   20 61 20 62 6F
+	   6F 6B 63 61 73
+	   65 20 74 6F 20
+	   79 6F 75 72 20
+	   6C 65 66 74 2E
+	   0D 0A 0D 0A 31
+	   2E 20 4D 6F 76
+	   65 20 74 6F 77
+	   61 72 64 73 20
+	   74 68 65 20 61
+	   72 6D 63 68 61
+	   69 72 2E 0D 0A
+	   32 2E 20 49 6E
+	   73 70 65 63 74
+	   20 74 68 65 20
+	   62 6F 6F 6B 73
+	   68 65 6C 66 0D
+	   0A 33 2E 20 47
+	   6F 20 62 61 63
+	   6B 20 74 6F 20
+	   74 68 65 20 68
+	   61 6C 6C 77 61
+	   79 0D 0A 00
+																				"1. Move towards the armchair.",13,10,
+																				"2. Inspect the bookshelf",13,10,
+																				"3. Go back to the hallway",13,10,0
+ 00002074 59 6F 75 20 73	level3_options0_options2_choice1_dialogue		BYTE			"You search around the seat and find a quarter and unwrapped mint. Lucky you!",13,10,0
+	   65 61 72 63 68
+	   20 61 72 6F 75
+	   6E 64 20 74 68
+	   65 20 73 65 61
+	   74 20 61 6E 64
+	   20 66 69 6E 64
+	   20 61 20 71 75
+	   61 72 74 65 72
+	   20 61 6E 64 20
+	   75 6E 77 72 61
+	   70 70 65 64 20
+	   6D 69 6E 74 2E
+	   20 4C 75 63 6B
+	   79 20 79 6F 75
+	   21 0D 0A 00
+ 000020C3 53 6F 6D 65 20	level3_options0_options2_choice2_dialogue		BYTE			"Some interesting reads... Old Man and the Sea,  Tuna: Is it Chicken or Fish ... bet that is riveting",13,10,0
+	   69 6E 74 65 72
+	   65 73 74 69 6E
+	   67 20 72 65 61
+	   64 73 2E 2E 2E
+	   20 4F 6C 64 20
+	   4D 61 6E 20 61
+	   6E 64 20 74 68
+	   65 20 53 65 61
+	   2C 20 20 54 75
+	   6E 61 3A 20 49
+	   73 20 69 74 20
+	   43 68 69 63 6B
+	   65 6E 20 6F 72
+	   20 46 69 73 68
+	   20 2E 2E 2E 20
+	   62 65 74 20 74
+	   68 61 74 20 69
+	   73 20 72 69 76
+	   65 74 69 6E 67
+	   0D 0A 00
+ 0000212A 4D 61 79 62 65	level3_options0_options2_choice2_options		BYTE			"Maybe these books can provide some background on that portrait in the hallway.",13,10,13,10,
+	   20 74 68 65 73
+	   65 20 62 6F 6F
+	   6B 73 20 63 61
+	   6E 20 70 72 6F
+	   76 69 64 65 20
+	   73 6F 6D 65 20
+	   62 61 63 6B 67
+	   72 6F 75 6E 64
+	   20 6F 6E 20 74
+	   68 61 74 20 70
+	   6F 72 74 72 61
+	   69 74 20 69 6E
+	   20 74 68 65 20
+	   68 61 6C 6C 77
+	   61 79 2E 0D 0A
+	   0D 0A 31 2E 20
+	   4F 6C 64 20 4D
+	   61 6E 20 61 6E
+	   64 20 74 68 65
+	   20 53 65 61 0D
+	   0A 32 2E 20 54
+	   68 65 20 42 6C
+	   61 63 6B 20 43
+	   61 74 0D 0A 33
+	   2E 20 41 20 43
+	   6F 6D 70 6C 65
+	   74 65 20 48 69
+	   73 74 6F 72 79
+	   20 6F 66 20 53
+	   70 69 6E 61 63
+	   68 0D 0A 34 2E
+	   20 43 61 70 74
+	   61 69 6E 20 53
+	   74 6F 72 6D 61
+	   67 65 64 64 6F
+	   6E 3A 20 49 6E
+	   74 6F 20 74 68
+	   65 20 45 79 65
+	   20 6F 66 20 74
+	   68 65 20 53 74
+	   6F 72 6D 0D 0A
+	   35 2E 20 47 6F
+	   20 62 61 63 6B
+	   20 74 6F 20 73
+	   74 75 64 79 0D
+	   0A 00
+																				"1. Old Man and the Sea",13,10,
+																				"2. The Black Cat",13,10,
+																				"3. A Complete History of Spinach",13,10,
+																				"4. Captain Stormageddon: Into the Eye of the Storm",13,10,
+																				"5. Go back to study",13,10,0
+ 00002212 41 20 70 72 65	level3_options0_options2_correctBook			BYTE			"A pretty compelling read but, more interestingly, you find a bookmark with the note 'Boop the snoot' scribbled",13,10,
+	   74 74 79 20 63
+	   6F 6D 70 65 6C
+	   6C 69 6E 67 20
+	   72 65 61 64 20
+	   62 75 74 2C 20
+	   6D 6F 72 65 20
+	   69 6E 74 65 72
+	   65 73 74 69 6E
+	   67 6C 79 2C 20
+	   79 6F 75 20 66
+	   69 6E 64 20 61
+	   20 62 6F 6F 6B
+	   6D 61 72 6B 20
+	   77 69 74 68 20
+	   74 68 65 20 6E
+	   6F 74 65 20 27
+	   42 6F 6F 70 20
+	   74 68 65 20 73
+	   6E 6F 6F 74 27
+	   20 73 63 72 69
+	   62 62 6C 65 64
+	   0D 0A 6F 6E 20
+	   69 74 2E 0D 0A
+	   00
+																				"on it.",13,10,0
+ 0000228B 59 6F 75 20 74	level3_options0_options2_incorrectBook			BYTE			"You thumb through the pages and don't come across anything interesting.",13,10,0
+	   68 75 6D 62 20
+	   74 68 72 6F 75
+	   67 68 20 74 68
+	   65 20 70 61 67
+	   65 73 20 61 6E
+	   64 20 64 6F 6E
+	   27 74 20 63 6F
+	   6D 65 20 61 63
+	   72 6F 73 73 20
+	   61 6E 79 74 68
+	   69 6E 67 20 69
+	   6E 74 65 72 65
+	   73 74 69 6E 67
+	   2E 0D 0A 00
+
+				; Painting
+ 000022D5 59 6F 75 20 66	level3_options0_choice3_options_noPlate			BYTE			"You find yourself looking at an oil painting of a grizzeled, old cat in a sailor suit, an eye patch, and puffing a",13,10,
+	   69 6E 64 20 79
+	   6F 75 72 73 65
+	   6C 66 20 6C 6F
+	   6F 6B 69 6E 67
+	   20 61 74 20 61
+	   6E 20 6F 69 6C
+	   20 70 61 69 6E
+	   74 69 6E 67 20
+	   6F 66 20 61 20
+	   67 72 69 7A 7A
+	   65 6C 65 64 2C
+	   20 6F 6C 64 20
+	   63 61 74 20 69
+	   6E 20 61 20 73
+	   61 69 6C 6F 72
+	   20 73 75 69 74
+	   2C 20 61 6E 20
+	   65 79 65 20 70
+	   61 74 63 68 2C
+	   20 61 6E 64 20
+	   70 75 66 66 69
+	   6E 67 20 61 0D
+	   0A 70 69 70 65
+	   2E 20 41 74 20
+	   74 68 65 20 62
+	   6F 74 74 6F 6D
+	   20 6F 66 20 74
+	   68 65 20 66 72
+	   61 6D 65 20 69
+	   73 20 61 20 73
+	   6D 61 6C 6C 20
+	   70 6C 61 74 65
+	   20 74 68 61 74
+	   20 73 65 65 6D
+	   73 20 6C 69 6B
+	   65 20 69 74 20
+	   73 68 6F 75 6C
+	   64 20 68 61 76
+	   65 20 61 20 6E
+	   61 6D 65 20 6F
+	   72 20 64 61 74
+	   65 2C 20 62 75
+	   74 20 69 74 20
+	   69 73 20 65 6D
+	   70 74 79 0D 0A
+	   0D 0A 31 2E 20
+	   53 70 69 6E 20
+	   74 68 65 20 70
+	   6C 61 71 75 65
+	   0D 0A 00
+																				"pipe. At the bottom of the frame is a small plate that seems like it should have a name or date, but it is empty",13,10,13,10,
+																				"1. Spin the plaque",13,10,0
+ 000023D2 59 6F 75 20 66	level3_options0_choice3_dialogue				BYTE			"You find yourself looking at an oil painting of a grizzeled, old cat in a sailor suit, an eye patch, and puffing a",13,10,
+	   69 6E 64 20 79
+	   6F 75 72 73 65
+	   6C 66 20 6C 6F
+	   6F 6B 69 6E 67
+	   20 61 74 20 61
+	   6E 20 6F 69 6C
+	   20 70 61 69 6E
+	   74 69 6E 67 20
+	   6F 66 20 61 20
+	   67 72 69 7A 7A
+	   65 6C 65 64 2C
+	   20 6F 6C 64 20
+	   63 61 74 20 69
+	   6E 20 61 20 73
+	   61 69 6C 6F 72
+	   20 73 75 69 74
+	   2C 20 61 6E 20
+	   65 79 65 20 70
+	   61 74 63 68 2C
+	   20 61 6E 64 20
+	   70 75 66 66 69
+	   6E 67 20 61 0D
+	   0A 70 69 70 65
+	   2E 20 41 74 20
+	   74 68 65 20 62
+	   6F 74 74 6F 6D
+	   20 6F 66 20 74
+	   68 65 20 66 72
+	   61 6D 65 20 69
+	   73 20 61 20 73
+	   6D 61 6C 6C 20
+	   70 6C 61 74 65
+	   20 74 68 61 74
+	   20 73 61 79 73
+	   20 27 50 6F 70
+	   65 79 65 27 2E
+	   0D 0A 00
+																				"pipe. At the bottom of the frame is a small plate that says 'Popeye'.",13,10,0
+ 0000248E 59 6F 75 20 74	level3_options0_choice3_options_book			BYTE			"You think of the note, and look a little closer at the portrait. You notice that some parts of the cat are",13,10,
+	   68 69 6E 6B 20
+	   6F 66 20 74 68
+	   65 20 6E 6F 74
+	   65 2C 20 61 6E
+	   64 20 6C 6F 6F
+	   6B 20 61 20 6C
+	   69 74 74 6C 65
+	   20 63 6C 6F 73
+	   65 72 20 61 74
+	   20 74 68 65 20
+	   70 6F 72 74 72
+	   61 69 74 2E 20
+	   59 6F 75 20 6E
+	   6F 74 69 63 65
+	   20 74 68 61 74
+	   20 73 6F 6D 65
+	   20 70 61 72 74
+	   73 20 6F 66 20
+	   74 68 65 20 63
+	   61 74 20 61 72
+	   65 0D 0A 61 63
+	   74 75 61 6C 6C
+	   79 20 73 6C 69
+	   67 68 74 6C 79
+	   20 72 61 69 73
+	   65 64 20 6C 69
+	   6B 65 20 62 75
+	   74 74 6F 6E 73
+	   2E 0D 0A 0D 0A
+	   31 2E 20 50 72
+	   65 73 73 20 74
+	   68 65 20 70 69
+	   70 65 0D 0A 32
+	   2E 20 50 72 65
+	   73 73 20 74 68
+	   65 20 65 79 65
+	   70 61 74 63 68
+	   0D 0A 33 2E 20
+	   50 72 65 73 73
+	   20 74 68 65 20
+	   6E 6F 73 65 0D
+	   0A 34 2E 20 47
+	   6F 20 62 61 63
+	   6B 20 74 6F 20
+	   68 61 6C 6C 77
+	   61 79 0D 0A 00
+																				"actually slightly raised like buttons.",13,10,13,10,
+																				"1. Press the pipe",13,10,
+																				"2. Press the eyepatch",13,10,
+																				"3. Press the nose",13,10,
+																				"4. Go back to hallway",13,10,0
+ 00002579 59 6F 75 20 68	level3_options0_options3_choice1				BYTE			"You hear a snapping noise and fall through a trap door right under your feet.",13,10,0
+	   65 61 72 20 61
+	   20 73 6E 61 70
+	   70 69 6E 67 20
+	   6E 6F 69 73 65
+	   20 61 6E 64 20
+	   66 61 6C 6C 20
+	   74 68 72 6F 75
+	   67 68 20 61 20
+	   74 72 61 70 20
+	   64 6F 6F 72 20
+	   72 69 67 68 74
+	   20 75 6E 64 65
+	   72 20 79 6F 75
+	   72 20 66 65 65
+	   74 2E 0D 0A 00
+ 000025C9 59 6F 75 20 68	level3_options0_options3_choice2				BYTE			"You hear what sounds like the release compressed air followed by a sting in your neck. You reach to the sting and pull",13,10,
+	   65 61 72 20 77
+	   68 61 74 20 73
+	   6F 75 6E 64 73
+	   20 6C 69 6B 65
+	   20 74 68 65 20
+	   72 65 6C 65 61
+	   73 65 20 63 6F
+	   6D 70 72 65 73
+	   73 65 64 20 61
+	   69 72 20 66 6F
+	   6C 6C 6F 77 65
+	   64 20 62 79 20
+	   61 20 73 74 69
+	   6E 67 20 69 6E
+	   20 79 6F 75 72
+	   20 6E 65 63 6B
+	   2E 20 59 6F 75
+	   20 72 65 61 63
+	   68 20 74 6F 20
+	   74 68 65 20 73
+	   74 69 6E 67 20
+	   61 6E 64 20 70
+	   75 6C 6C 0D 0A
+	   6F 75 74 20 61
+	   20 73 6D 61 6C
+	   6C 20 64 61 72
+	   74 2E 0D 0A 00
+																				"out a small dart.",13,10,0
+ 00002655 59 6F 75 20 68	level3_options0_options3_choice3				BYTE			"You hear a mechanical sound and then a distant creak. It sounds like it came from that coat closet.",13,10,0
+	   65 61 72 20 61
+	   20 6D 65 63 68
+	   61 6E 69 63 61
+	   6C 20 73 6F 75
+	   6E 64 20 61 6E
+	   64 20 74 68 65
+	   6E 20 61 20 64
+	   69 73 74 61 6E
+	   74 20 63 72 65
+	   61 6B 2E 20 49
+	   74 20 73 6F 75
+	   6E 64 73 20 6C
+	   69 6B 65 20 69
+	   74 20 63 61 6D
+	   65 20 66 72 6F
+	   6D 20 74 68 61
+	   74 20 63 6F 61
+	   74 20 63 6C 6F
+	   73 65 74 2E 0D
+	   0A 00
+
+				; Level 4: Basement -----------------------------
+ 000026BB 62 6F 6F 74 79	level4_combo									BYTE			"booty",0
+	   00
+
+				; Starting options
+ 000026C1 59 6F 75 20 6D	level4_dialogue0								BYTE			"You make your way down the stairs and enter a basement that is dimly lit by many half melted candles.",13,10,0
+	   61 6B 65 20 79
+	   6F 75 72 20 77
+	   61 79 20 64 6F
+	   77 6E 20 74 68
+	   65 20 73 74 61
+	   69 72 73 20 61
+	   6E 64 20 65 6E
+	   74 65 72 20 61
+	   20 62 61 73 65
+	   6D 65 6E 74 20
+	   74 68 61 74 20
+	   69 73 20 64 69
+	   6D 6C 79 20 6C
+	   69 74 20 62 79
+	   20 6D 61 6E 79
+	   20 68 61 6C 66
+	   20 6D 65 6C 74
+	   65 64 20 63 61
+	   6E 64 6C 65 73
+	   2E 0D 0A 00
+ 00002729 54 6F 20 79 6F	level4_options0									BYTE			"To your right is what looks to be a small shrine and to your left is a stool with a Ouija board on top. Straight ahead,",13,10,
+	   75 72 20 72 69
+	   67 68 74 20 69
+	   73 20 77 68 61
+	   74 20 6C 6F 6F
+	   6B 73 20 74 6F
+	   20 62 65 20 61
+	   20 73 6D 61 6C
+	   6C 20 73 68 72
+	   69 6E 65 20 61
+	   6E 64 20 74 6F
+	   20 79 6F 75 72
+	   20 6C 65 66 74
+	   20 69 73 20 61
+	   20 73 74 6F 6F
+	   6C 20 77 69 74
+	   68 20 61 20 4F
+	   75 69 6A 61 20
+	   62 6F 61 72 64
+	   20 6F 6E 20 74
+	   6F 70 2E 20 53
+	   74 72 61 69 67
+	   68 74 20 61 68
+	   65 61 64 2C 0D
+	   0A 74 68 65 72
+	   65 20 69 73 20
+	   61 20 74 61 62
+	   6C 65 20 77 69
+	   74 68 20 61 6E
+	   20 6F 72 6E 61
+	   74 65 20 62 6F
+	   78 2E 0D 0A 0D
+	   0A 31 2E 20 4D
+	   6F 76 65 20 74
+	   6F 77 61 72 64
+	   73 20 74 68 65
+	   20 74 61 62 6C
+	   65 0D 0A 32 2E
+	   20 49 6E 73 70
+	   65 63 74 20 74
+	   68 65 20 73 68
+	   72 69 6E 65 0D
+	   0A 33 2E 20 54
+	   61 6B 65 20 61
+	   20 6C 6F 6F 6B
+	   20 61 74 20 74
+	   68 65 20 4F 75
+	   69 6A 61 20 62
+	   6F 61 72 64 0D
+	   0A 00
+																				"there is a table with an ornate box.",13,10,13,10,
+																				"1. Move towards the table",13,10,
+																				"2. Inspect the shrine",13,10,
+																				"3. Take a look at the Ouija board",13,10,0
+				; The box
+ 00002820 54 68 65 20 62	level4_options0_choice1_options					BYTE			"The box on the table is a warm brown wood with detailed engravings of fish and fish bones. On the top of the box is a 5",13,10,
+	   6F 78 20 6F 6E
+	   20 74 68 65 20
+	   74 61 62 6C 65
+	   20 69 73 20 61
+	   20 77 61 72 6D
+	   20 62 72 6F 77
+	   6E 20 77 6F 6F
+	   64 20 77 69 74
+	   68 20 64 65 74
+	   61 69 6C 65 64
+	   20 65 6E 67 72
+	   61 76 69 6E 67
+	   73 20 6F 66 20
+	   66 69 73 68 20
+	   61 6E 64 20 66
+	   69 73 68 20 62
+	   6F 6E 65 73 2E
+	   20 4F 6E 20 74
+	   68 65 20 74 6F
+	   70 20 6F 66 20
+	   74 68 65 20 62
+	   6F 78 20 69 73
+	   20 61 20 35 0D
+	   0A 6C 65 74 74
+	   65 72 20 63 6F
+	   6D 62 69 6E 61
+	   74 69 6F 6E 20
+	   6C 6F 63 6B 2E
+	   20 4E 65 78 74
+	   20 74 6F 20 74
+	   68 65 20 62 6F
+	   78 20 69 73 20
+	   61 20 66 6F 6C
+	   64 65 64 20 70
+	   69 65 63 65 20
+	   6F 66 20 70 61
+	   70 65 72 2E 0D
+	   0A 0D 0A 31 2E
+	   20 55 6E 66 6F
+	   6C 64 20 74 68
+	   65 20 70 69 65
+	   63 65 20 6F 66
+	   20 70 61 70 65
+	   72 0D 0A 32 2E
+	   20 45 6E 74 65
+	   72 20 61 20 63
+	   6F 6D 62 69 6E
+	   61 74 69 6F 6E
+	   0D 0A 33 2E 20
+	   4D 6F 76 65 20
+	   62 61 63 6B 20
+	   74 6F 20 6D 69
+	   64 64 6C 65 20
+	   6F 66 20 72 6F
+	   6F 6D 0D 0A 00
+																				"letter combination lock. Next to the box is a folded piece of paper.",13,10,13,10,
+																				"1. Unfold the piece of paper",13,10,
+																				"2. Enter a combination",13,10,
+																				"3. Move back to middle of room",13,10,0
+ 00002938  00000006 [		level4_options0_options1_choice2_combo			BYTE			BUFFER_SIZE DUP(?)
+	    00
+	   ]
+ 0000293E 59 6F 75 20 73	level4_options0_options1_choice2_promptCombo	BYTE			"You set the combination lock to the following 5 letters: ",0 
+	   65 74 20 74 68
+	   65 20 63 6F 6D
+	   62 69 6E 61 74
+	   69 6F 6E 20 6C
+	   6F 63 6B 20 74
+	   6F 20 74 68 65
+	   20 66 6F 6C 6C
+	   6F 77 69 6E 67
+	   20 35 20 6C 65
+	   74 74 65 72 73
+	   3A 20 00
+ 00002978 54 68 65 20 62	level4_options0_options1_choice2_wrongCombo		BYTE			"The box remains locked.",13,10,0
+	   6F 78 20 72 65
+	   6D 61 69 6E 73
+	   20 6C 6F 63 6B
+	   65 64 2E 0D 0A
+	   00
+ 00002992 59 6F 75 20 68	level4_options0_options1_choice2_rightCombo		BYTE			"You hear a latch click and the lid pops open.",13,10,0
+	   65 61 72 20 61
+	   20 6C 61 74 63
+	   68 20 63 6C 69
+	   63 6B 20 61 6E
+	   64 20 74 68 65
+	   20 6C 69 64 20
+	   70 6F 70 73 20
+	   6F 70 65 6E 2E
+	   0D 0A 00
+
+				; The shrine
+ 000029C2 59 6F 75 20 73	level4_options0_choice2_options					BYTE			"You squat down to look at the small shrine. There is a statue of a cat with candles all around it. In front of the cat",13,10,
+	   71 75 61 74 20
+	   64 6F 77 6E 20
+	   74 6F 20 6C 6F
+	   6F 6B 20 61 74
+	   20 74 68 65 20
+	   73 6D 61 6C 6C
+	   20 73 68 72 69
+	   6E 65 2E 20 54
+	   68 65 72 65 20
+	   69 73 20 61 20
+	   73 74 61 74 75
+	   65 20 6F 66 20
+	   61 20 63 61 74
+	   20 77 69 74 68
+	   20 63 61 6E 64
+	   6C 65 73 20 61
+	   6C 6C 20 61 72
+	   6F 75 6E 64 20
+	   69 74 2E 20 49
+	   6E 20 66 72 6F
+	   6E 74 20 6F 66
+	   20 74 68 65 20
+	   63 61 74 0D 0A
+	   69 73 20 61 20
+	   73 6D 61 6C 6C
+	   20 70 69 6C 65
+	   20 6F 66 20 63
+	   61 74 20 74 72
+	   65 61 74 73 20
+	   61 6E 64 20 61
+	   20 66 65 77 20
+	   74 6F 79 20 6D
+	   69 63 65 2E 20
+	   49 6E 20 66 72
+	   6F 6E 74 20 6F
+	   66 20 74 68 65
+	   20 6F 66 66 65
+	   72 69 6E 67 20
+	   69 73 20 61 20
+	   63 6F 75 70 6C
+	   65 20 6F 66 20
+	   74 61 72 6F 74
+	   20 63 61 72 64
+	   73 2E 0D 0A 0D
+	   0A 31 2E 20 4C
+	   6F 6F 6B 20 61
+	   74 20 74 68 65
+	   20 74 61 72 6F
+	   74 20 63 61 72
+	   64 20 72 65 61
+	   64 69 6E 67 0D
+	   0A 32 2E 20 50
+	   69 63 6B 20 75
+	   70 20 6F 6E 65
+	   20 6F 66 20 74
+	   68 65 20 6D 69
+	   63 65 0D 0A 33
+	   2E 20 4D 6F 76
+	   65 20 62 61 63
+	   6B 20 74 6F 20
+	   6D 69 64 64 6C
+	   65 20 6F 66 20
+	   72 6F 6F 6D 0D
+	   0A 00
+																				"is a small pile of cat treats and a few toy mice. In front of the offering is a couple of tarot cards.",13,10,13,10,
+																				"1. Look at the tarot card reading",13,10,
+																				"2. Pick up one of the mice",13,10,
+																				"3. Move back to middle of room",13,10,0
+ 00002B04 59 6F 75 20 73	level4_options0_options2_choice1				BYTE			"You see the following cards:",13,10,
+	   65 65 20 74 68
+	   65 20 66 6F 6C
+	   6C 6F 77 69 6E
+	   67 20 63 61 72
+	   64 73 3A 0D 0A
+	   49 49 20 2D 20
+	   54 68 65 20 48
+	   65 72 6D 69 74
+	   0D 0A 58 56 20
+	   2D 20 54 68 65
+	   20 44 65 76 69
+	   6C 0D 0A 58 56
+	   49 20 2D 20 54
+	   68 65 20 54 6F
+	   77 65 72 0D 0A
+	   58 56 49 49 49
+	   20 2D 20 54 68
+	   65 20 4D 6F 6F
+	   6E 0D 0A 58 58
+	   49 20 2D 20 54
+	   68 65 20 57 6F
+	   72 6C 64 0D 0A
+	   00
+																				"II - The Hermit",13,10,
+																				"XV - The Devil",13,10,
+																				"XVI - The Tower",13,10,
+																				"XVIII - The Moon",13,10,
+																				"XXI - The World",13,10,0
+ 00002B78 59 6F 75 20 70	level4_options0_options2_choice2				BYTE			"You pick up one of the mice and immediately know it is very much a real, dead mouse.",13,10,0
+	   69 63 6B 20 75
+	   70 20 6F 6E 65
+	   20 6F 66 20 74
+	   68 65 20 6D 69
+	   63 65 20 61 6E
+	   64 20 69 6D 6D
+	   65 64 69 61 74
+	   65 6C 79 20 6B
+	   6E 6F 77 20 69
+	   74 20 69 73 20
+	   76 65 72 79 20
+	   6D 75 63 68 20
+	   61 20 72 65 61
+	   6C 2C 20 64 65
+	   61 64 20 6D 6F
+	   75 73 65 2E 0D
+	   0A 00
+
+				; The Ouina board
+ 00002BCF 59 6F 75 20 73	level4_options0_choice3_options					BYTE			"You see a standard Ouija board with a planchette.",13,10,13,10,
+	   65 65 20 61 20
+	   73 74 61 6E 64
+	   61 72 64 20 4F
+	   75 69 6A 61 20
+	   62 6F 61 72 64
+	   20 77 69 74 68
+	   20 61 20 70 6C
+	   61 6E 63 68 65
+	   74 74 65 2E 0D
+	   0A 0D 0A 31 2E
+	   20 50 6C 61 63
+	   65 20 79 6F 75
+	   72 20 66 69 6E
+	   67 65 72 73 20
+	   6F 6E 20 74 68
+	   65 20 70 6C 61
+	   6E 63 68 65 74
+	   74 65 0D 0A 32
+	   2E 20 4D 6F 76
+	   65 20 62 61 63
+	   6B 20 74 6F 20
+	   6D 69 64 64 6C
+	   65 20 6F 66 20
+	   72 6F 6F 6D 0D
+	   0A 00
+																				"1. Place your fingers on the planchette",13,10,
+																				"2. Move back to middle of room",13,10,0
+ 00002C4E 54 68 65 20 70	level4_options0_options3_options				BYTE			"The planchette begins to move. Startled, you lift your fingers and look around. You now notice that the black cat that",13,10,
+	   6C 61 6E 63 68
+	   65 74 74 65 20
+	   62 65 67 69 6E
+	   73 20 74 6F 20
+	   6D 6F 76 65 2E
+	   20 53 74 61 72
+	   74 6C 65 64 2C
+	   20 79 6F 75 20
+	   6C 69 66 74 20
+	   79 6F 75 72 20
+	   66 69 6E 67 65
+	   72 73 20 61 6E
+	   64 20 6C 6F 6F
+	   6B 20 61 72 6F
+	   75 6E 64 2E 20
+	   59 6F 75 20 6E
+	   6F 77 20 6E 6F
+	   74 69 63 65 20
+	   74 68 61 74 20
+	   74 68 65 20 62
+	   6C 61 63 6B 20
+	   63 61 74 20 74
+	   68 61 74 0D 0A
+	   77 61 73 20 69
+	   6E 20 74 68 65
+	   20 6C 69 76 69
+	   6E 67 20 72 6F
+	   6F 6D 20 69 73
+	   20 6E 6F 77 20
+	   73 74 61 72 69
+	   6E 67 20 61 74
+	   20 79 6F 75 20
+	   66 72 6F 6D 20
+	   74 68 65 20 62
+	   61 73 65 6D 65
+	   6E 74 20 73 74
+	   61 69 72 73 20
+	   6C 69 6B 65 20
+	   68 65 20 69 73
+	   20 77 61 69 74
+	   69 6E 67 20 66
+	   6F 72 20 73 6F
+	   6D 65 74 68 69
+	   6E 67 2E 0D 0A
+	   0D 0A 31 2E 20
+	   50 75 74 20 79
+	   6F 75 72 20 66
+	   69 6E 67 65 72
+	   73 20 62 61 63
+	   6B 20 6F 6E 20
+	   74 68 65 20 70
+	   6C 61 6E 63 68
+	   65 74 74 65 0D
+	   0A 32 2E 20 4D
+	   6F 76 65 20 62
+	   61 63 6B 20 74
+	   6F 20 6D 69 64
+	   64 6C 65 20 6F
+	   66 20 72 6F 6F
+	   6D 0D 0A 00
+																				"was in the living room is now staring at you from the basement stairs like he is waiting for something.",13,10,13,10,
+																				"1. Put your fingers back on the planchette",13,10,
+																				"2. Move back to middle of room",13,10,0
+ 00002D7E 54 68 65 20 70	level4_options0_options3_dialogue				BYTE			"The planchette moves and spells the word 'TOWER' before moving to goodbye.",13,10,0
+	   6C 61 6E 63 68
+	   65 74 74 65 20
+	   6D 6F 76 65 73
+	   20 61 6E 64 20
+	   73 70 65 6C 6C
+	   73 20 74 68 65
+	   20 77 6F 72 64
+	   20 27 54 4F 57
+	   45 52 27 20 62
+	   65 66 6F 72 65
+	   20 6D 6F 76 69
+	   6E 67 20 74 6F
+	   20 67 6F 6F 64
+	   62 79 65 2E 0D
+	   0A 00
+
+ 00002DCB 59 6F 75 20 6F	level4_winner_p1								BYTE			"You open the box and discover it is full of gold! It turns out the stories were true. You go to pick up the box,",13,10,
+	   70 65 6E 20 74
+	   68 65 20 62 6F
+	   78 20 61 6E 64
+	   20 64 69 73 63
+	   6F 76 65 72 20
+	   69 74 20 69 73
+	   20 66 75 6C 6C
+	   20 6F 66 20 67
+	   6F 6C 64 21 20
+	   49 74 20 74 75
+	   72 6E 73 20 6F
+	   75 74 20 74 68
+	   65 20 73 74 6F
+	   72 69 65 73 20
+	   77 65 72 65 20
+	   74 72 75 65 2E
+	   20 59 6F 75 20
+	   67 6F 20 74 6F
+	   20 70 69 63 6B
+	   20 75 70 20 74
+	   68 65 20 62 6F
+	   78 2C 0D 0A 61
+	   6E 64 20 70 61
+	   75 73 65 2E 20
+	   59 6F 75 20 74
+	   75 72 6E 20 74
+	   6F 77 61 72 64
+	   73 20 74 68 65
+	   20 62 6C 61 63
+	   6B 20 63 61 74
+	   20 77 68 6F 20
+	   69 73 20 6E 6F
+	   77 20 69 6E 20
+	   74 68 65 20 6D
+	   69 64 64 6C 65
+	   20 6F 66 20 74
+	   68 65 20 72 6F
+	   6F 6D 2E 00
+																				"and pause. You turn towards the black cat who is now in the middle of the room.",0
+ 00002E8D 59 6F 75 20 73	level4_winner_p2								BYTE			"You swear the cat nods before sitting into a comfortable loaf. You leave the mansion with the treasure, looking",13,10,
+	   77 65 61 72 20
+	   74 68 65 20 63
+	   61 74 20 6E 6F
+	   64 73 20 62 65
+	   66 6F 72 65 20
+	   73 69 74 74 69
+	   6E 67 20 69 6E
+	   74 6F 20 61 20
+	   63 6F 6D 66 6F
+	   72 74 61 62 6C
+	   65 20 6C 6F 61
+	   66 2E 20 59 6F
+	   75 20 6C 65 61
+	   76 65 20 74 68
+	   65 20 6D 61 6E
+	   73 69 6F 6E 20
+	   77 69 74 68 20
+	   74 68 65 20 74
+	   72 65 61 73 75
+	   72 65 2C 20 6C
+	   6F 6F 6B 69 6E
+	   67 0D 0A 61 74
+	   20 74 68 65 20
+	   6F 64 64 20 68
+	   6F 75 73 65 20
+	   6F 6E 65 20 6C
+	   61 73 74 20 74
+	   69 6D 65 2E 0D
+	   0A 00
+																				"at the odd house one last time.",13,10,0
+
+ 00000000			.code
+
+ 00000000			main PROC
+					; Title
+ 00000000  68 00000070 R		push OFFSET splash_file
+ 00000005  E8 00000058			call printTextFile
+
+ 0000000A  68 000010EE R		push OFFSET instructions
+ 0000000F  E8 0000009C			call printDialogue
+
+ 00000014  68 000011F7 R		push OFFSET introduction
+ 00000019  E8 00000092			call printDialogue
+
+					; Run game
+ 0000001E  E8 000003DD			call runLevel0
+
+ 00000023  E8 0000044B			call runLevel1
+
+ 00000028  E8 000004DE			call runLevel2
+
+ 0000002D  E8 0000066F			call runLevel3
+
+ 00000032  E8 0000083F			call runLevel4
+
+ 00000037  E8 000009B0			call endGame
+
+ 0000003C			main ENDP
+
+ 0000003C			moveCursor PROC C X:WORD,Y:WORD
+				    LOCAL pos:COORD
+ 0000003C  55		   *	    push   ebp
+ 0000003D  8B EC	   *	    mov    ebp, esp
+ 0000003F  83 C4 FC	   *	    add    esp, 0FFFFFFFCh
+ 00000042  66| 8B 45 08		    mov ax,X
+ 00000046  66| 89 45 FC		    mov pos.X,ax
+ 0000004A  66| 8B 45 0C		    mov ax,Y
+ 0000004E  66| 89 45 FE		    mov pos.Y,ax
+				    invoke SetConsoleCurSorPosition,hStdOut,pos
+ 00000052  FF 75 FC	   *	    push   dword  ptr ss:[ebp]+0FFFFFFFCh
+ 00000055  FF 35 0000001A R *	    push   hStdOut
+ 0000005B  E8 00000000 E   *	    call   SetConsoleCursorPosition
+				    ret
+ 00000060  C9		   *	    leave  
+ 00000061  C3		   *	    ret    00000h
+ 00000062			moveCursor ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: printTextFile
+				;
+				; Prints the splash page.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Value stored in EAX.
+				;
+				; Receives:
+				;	[EBP+8] = offset of file
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 00000062			printTextFile PROC
+ 00000062  55				push EBP
+ 00000063  8B EC			mov EBP, ESP
+ 00000065  50				push EAX
+ 00000066  51				push ECX
+ 00000067  52				push EDX
+
+					; Open file and create handle
+ 00000068  8B 55 08			mov EDX, [EBP+8]
+ 0000006B  E8 00000000 E		call OpenInputFile
+ 00000070  50				push EAX
+
+					; Read file
+ 00000071  BA 000000CC R		mov EDX, OFFSET txtArray
+ 00000076  B9 00000FA0			mov ECX, ARRAY_SIZE
+ 0000007B  E8 00000000 E		call ReadFromFile
+
+					; Close file
+ 00000080  58				pop EAX
+ 00000081  E8 00000000 E		call CloseFile
+
+					; Print text
+ 00000086  BA 000000CC R		mov EDX, OFFSET txtArray
+ 0000008B  E8 00000000 E		call WriteString
+ 00000090  E8 00000000 E		call CrLf
+ 00000095  E8 00000000 E		call CrLf
+					
+					; Clear array
+ 0000009A  68 00000FA0			push ARRAY_SIZE
+ 0000009F  68 000000CC R		push OFFSET txtArray
+ 000000A4  E8 000000EA			call clearArray
+
+ 000000A9  5A				pop EDX
+ 000000AA  59				pop ECX
+ 000000AB  58				pop EAX
+ 000000AC  5D				pop EBP
+ 000000AD  C2 0004			ret 4
+ 000000B0			printTextFile ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: printDialogue
+				;
+				; Prints dialogue.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Value stored in EAX.
+				;
+				; Receives:
+				;	[EBP+8]	= address of dialogue
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 000000B0			printDialogue PROC
+					; Procedure prep
+ 000000B0  55				push EBP
+ 000000B1  8B EC			mov EBP, ESP
+
+					; Display dialogue
+ 000000B3  B8 00000009			mov EAX, DIALOGUE_DISPLAY
+ 000000B8  E8 00000000 E		call SetTextColor
+
+ 000000BD  E8 00000000 E		call CrLf
+ 000000C2  8B 55 08			mov EDX, [EBP+8]
+ 000000C5  E8 00000000 E		call WriteString
+ 000000CA  E8 00000000 E		call CrLf
+
+ 000000CF  B8 0000000F			mov EAX, DEFAULT_DISPLAY
+ 000000D4  E8 00000000 E		call SetTextColor
+
+					; Procedure clean up
+ 000000D9  5D				pop EBP
+ 000000DA  C2 0004			ret 4
+ 000000DD			printDialogue ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: printOptions
+				;
+				; Prints choices and gets user's choice.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Value stored in EAX.
+				;
+				; Receives:
+				;	[EBP+8]	= choices offset
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 000000DD			printOptions PROC
+					; Procedure prep
+ 000000DD  55				push EBP
+ 000000DE  8B EC			mov EBP, ESP
+
+					; Display options
+ 000000E0  E8 00000000 E		call CrLf
+ 000000E5  B8 00000002			mov EAX, OPTIONS_DISPLAY
+ 000000EA  E8 00000000 E		call SetTextColor
+
+ 000000EF  8B 55 08			mov EDX, [EBP+8]
+ 000000F2  E8 00000000 E		call WriteString
+ 000000F7  E8 00000000 E		call CrLf
+
+ 000000FC  BA 0000001E R		mov EDX, OFFSET choice_prompt
+ 00000101  E8 00000000 E		call WriteString
+
+ 00000106  B0 20			mov AL, 20h
+ 00000108  E8 00000000 E		call WriteChar
+ 0000010D  B0 08			mov AL, 8h
+ 0000010F  E8 00000000 E		call WriteChar
+
+ 00000114  B8 0000000F			mov EAX, DEFAULT_DISPLAY
+ 00000119  E8 00000000 E		call SetTextColor
+
+					; Get choice
+ 0000011E  E8 00000000 E		call ReadInt
+ 00000123  E8 00000000 E		call CrLf
+
+					; Procedure clean up
+ 00000128  5D				pop EBP
+ 00000129  C2 0004			ret 4
+ 0000012C			printOptions ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: fatalChoice
+				;
+				; Handles a fatal choice by asking if user wants to retry or end the game.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Saves restores EAX and EDX. If the user chooses to end the game, 
+				;				  then endGame is called.
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 0000012C			fatalChoice PROC USES EAX EDX
+					
+ 0000012C  50		   *	    push   eax
+ 0000012D  52		   *	    push   edx
+ 0000012E  B8 0000000C			mov EAX, FATAL_DISPLAY
+ 00000133  E8 00000000 E		call SetTextColor
+
+					; Prompt for key press
+ 00000138  E8 00000000 E		call CrLf
+ 0000013D  BA 0000002E R		mov EDX, OFFSET fatal_prompt
+ 00000142  E8 00000000 E		call WriteString
+
+ 00000147  B8 0000000F			mov EAX, DEFAULT_DISPLAY
+ 0000014C  E8 00000000 E		call SetTextColor
+
+ 00000151			_waitKeyPress:
+					; Get the key press
+					getKeyPress
+ 00000151		     1	??0000:
+ 00000151  B8 0000000A	     1		mov EAX, 10
+ 00000156  E8 00000000 E     1		call Delay
+ 0000015B  E8 00000000 E     1		call ReadKey
+ 00000160  74 EF	     1		jz ??0000
+
+					; Check 'Y'
+ 00000162  66| 83 FA 59			cmp DX, 59h
+ 00000166  74 1C			je _ContinueGame
+
+					; Check 'N'
+ 00000168  66| 83 FA 4E			cmp DX, 4Eh
+ 0000016C  74 02			je _StopGame
+
+					; Unknown key press
+ 0000016E  EB E1			jmp _waitKeyPress
+
+ 00000170			_StopGame:
+ 00000170  B0 4E			mov AL, 'N'
+ 00000172  E8 00000000 E		call WriteChar
+ 00000177  58				pop EAX
+ 00000178  5A				pop EDX
+ 00000179  5D				pop EBP
+ 0000017A  E8 00000000 E		call CrLf
+ 0000017F  E8 00000868			call endGame
+
+ 00000184			_ContinueGame:
+ 00000184  B0 59			mov AL, 'Y'
+ 00000186  E8 00000000 E		call WriteChar
+ 0000018B  E8 00000000 E		call CrLf
+
+					; Procedure clean up
+					ret
+ 00000190  5A		   *	    pop    edx
+ 00000191  58		   *	    pop    eax
+ 00000192  C3		   *	    ret    00000h
+ 00000193			fatalChoice ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: clearArray
+				;
+				; Clears an array.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Saves and restores EBP, EAX, EDX.
+				;
+				; Receives:
+				;	[ebp+12] = length of array
+				;	[ebp+8] = address of array
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 00000193			clearArray PROC
+					; Procedure prep
+ 00000193  55				push EBP
+ 00000194  8B EC			mov EBP, ESP
+ 00000196  50				push EAX
+ 00000197  51				push ECX
+ 00000198  57				push EDI
+
+					; Make sure to empty txtArray, otherwise weird stuff might print after the number
+ 00000199  8B 7D 08			mov EDI, [EBP+8]
+ 0000019C  8B 4D 0C			mov ECX, [EBP+12]
+ 0000019F  B0 00			mov AL, 0
+ 000001A1  F3/ AA			rep stosb
+
+					; Procedure clean up
+ 000001A3  5F				pop EDI
+ 000001A4  59				pop ECX
+ 000001A5  58				pop EAX
+ 000001A6  5D				pop EBP
+ 000001A7  C2 0008			ret 8
+ 000001AA			clearArray ENDP
+
+
+				; ---------------------------------------------------------------------------------
+				; Name: printLaptopScreen
+				;
+				; Reads laptop screen file and displays. Waits for user to exit.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Saves and restores EBP, EAX, EDX.
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 000001AA			printLaptopScreen PROC
+ 000001AA  68 0000007F R		push OFFSET laptop_login_file
+ 000001AF  E8 FFFFFEAE			call printTextFile
+					
+					getCursorPos
+ 000001B4  50		     1		push EAX
+ 000001B5  6A F5	   *	    push    -00000000Bh
+ 000001B7  E8 00000000 E   *	    call   GetStdHandle
+ 000001BC  A3 0000001A R     1		mov hStdOut, EAX
+ 000001C1  68 00000000 R   *	    push   OFFSET CursorPos
+ 000001C6  FF 35 0000001A R *	    push   hStdOut
+ 000001CC  E8 00000000 E   *	    call   GetConsoleScreenBufferInfo
+ 000001D1  58		     1		pop EAX
+
+ 000001D2			_DisplayOptions:
+					; Return cursor to original position
+					invoke moveCursor, CursorPos.dwCursorPosition.X, CursorPos.dwCursorPosition.Y
+ 000001D2  83 EC 02	   *	    sub    esp, 002h
+ 000001D5  66| FF 35
+	   00000006 R	   *	    push   word  ptr CursorPos+00006h
+ 000001DC  83 EC 02	   *	    sub    esp, 002h
+ 000001DF  66| FF 35
+	   00000004 R	   *	    push   word  ptr CursorPos+00004h
+ 000001E6  E8 FFFFFE51	   *	    call   moveCursor
+ 000001EB  83 C4 08	   *	    add    esp, 000000008h
+
+					; Check if we are leaving or trying a password
+ 000001EE  68 00001A12 R		push OFFSET level2_options1_options2_options1
+ 000001F3  E8 FFFFFEE5			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 2, EAX
+ 000001F8  83 F8 01	     1		cmp EAX, 1
+ 000001FB  7C 07	     1		jl ??0001
+ 000001FD  83 F8 02	     1		cmp EAX, 2
+ 00000200  7F 02	     1		jg ??0001
+ 00000202  EB 05	     1		jmp ??0002
+ 00000204		     1	??0001:
+ 00000204  B8 00000000	     1		mov EAX, 0
+ 00000209		     1	??0002:
+ 00000209  83 F8 00			cmp EAX, 0
+ 0000020C  74 C4			je _DisplayOptions
+
+					; Check if choice 1
+ 0000020E  83 F8 01			cmp EAX, 1
+ 00000211  0F 85 000000D3		jne _Leave
+
+					; Move curosr to password section
+ 00000217  66| A1			mov AX, CursorPos.dwCursorPosition.Y
+	   00000006 R
+ 0000021D  66| 83 E8 0D			sub AX, 13
+ 00000221  66| A3			mov cursorY, AX
+	   00000018 R
+ 00000227  66| C7 05			mov cursorX, 30
+	   00000016 R
+	   001E
+					invoke moveCursor, cursorX, cursorY
+ 00000230  83 EC 02	   *	    sub    esp, 002h
+ 00000233  66| FF 35
+	   00000018 R	   *	    push   cursorY
+ 0000023A  83 EC 02	   *	    sub    esp, 002h
+ 0000023D  66| FF 35
+	   00000016 R	   *	    push   cursorX
+ 00000244  E8 FFFFFDF3	   *	    call   moveCursor
+ 00000249  83 C4 08	   *	    add    esp, 000000008h
+					
+					; Get password, check if right
+ 0000024C  E8 00000000 E		call ReadDec
+
+ 00000251  3B 05 00001633 R		cmp EAX, level2_password
+ 00000257  74 5F			je _GoodPassword
+
+					; Bad password
+					invoke moveCursor, cursorX, cursorY
+ 00000259  83 EC 02	   *	    sub    esp, 002h
+ 0000025C  66| FF 35
+	   00000018 R	   *	    push   cursorY
+ 00000263  83 EC 02	   *	    sub    esp, 002h
+ 00000266  66| FF 35
+	   00000016 R	   *	    push   cursorX
+ 0000026D  E8 FFFFFDCA	   *	    call   moveCursor
+ 00000272  83 C4 08	   *	    add    esp, 000000008h
+ 00000275  52				push EDX
+ 00000276  BA 00001A47 R		mov EDX, OFFSET level2_options1_options2_choice1_badPassword
+ 0000027B  E8 00000000 E		call WriteString
+ 00000280  B8 000003E8			mov EAX, 1000
+ 00000285  E8 00000000 E		call Delay
+ 0000028A  5A				pop EDX
+
+					; Reset password
+					invoke moveCursor, cursorX, cursorY
+ 0000028B  83 EC 02	   *	    sub    esp, 002h
+ 0000028E  66| FF 35
+	   00000018 R	   *	    push   cursorY
+ 00000295  83 EC 02	   *	    sub    esp, 002h
+ 00000298  66| FF 35
+	   00000016 R	   *	    push   cursorX
+ 0000029F  E8 FFFFFD98	   *	    call   moveCursor
+ 000002A4  83 C4 08	   *	    add    esp, 000000008h
+ 000002A7  52				push EDX
+ 000002A8  BA 00001A58 R		mov EDX, OFFSET level2_options1_options2_choice1_clear
+ 000002AD  E8 00000000 E		call WriteString
+ 000002B2  5A				pop EDX
+
+ 000002B3  E9 FFFFFF1A			jmp _DisplayOptions
+
+ 000002B8			_GoodPassword:
+					; Good password
+					; Reset the cursor
+					invoke moveCursor, CursorPos.dwCursorPosition.X, CursorPos.dwCursorPosition.Y
+ 000002B8  83 EC 02	   *	    sub    esp, 002h
+ 000002BB  66| FF 35
+	   00000006 R	   *	    push   word  ptr CursorPos+00006h
+ 000002C2  83 EC 02	   *	    sub    esp, 002h
+ 000002C5  66| FF 35
+	   00000004 R	   *	    push   word  ptr CursorPos+00004h
+ 000002CC  E8 FFFFFD6B	   *	    call   moveCursor
+ 000002D1  83 C4 08	   *	    add    esp, 000000008h
+
+					; Toggle diary found
+ 000002D4  C6 05 00001637 R		mov level2_diaryFound, 1
+	   01
+ 000002DB  E8 00000000 E		call CrLf
+
+					; Show diary entry
+ 000002E0  68 00000089 R		push OFFSET laptop_diary_file
+ 000002E5  E8 FFFFFD78			call printTextFile
+					
+ 000002EA			_Leave:
+					; Leave
+ 000002EA  C3				ret
+ 000002EB			printLaptopScreen ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: printPortrait
+				;
+				; Reads portrait file and displays. Waits for user to exit.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Saves and restores EBP, EAX, EDX.
+				;
+				; Receives:
+				;	[EBP+8] = toggle for printing the portrait with the plate name or without
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 000002EB			printPortrait PROC
+ 000002EB  55				push EBP
+ 000002EC  8B EC			mov EBP, ESP
+ 000002EE  50				push EAX
+					
+					; Check which file we are printing
+ 000002EF  8B 45 08			mov EAX, [EBP+8]
+ 000002F2  83 F8 01			cmp EAX, 1
+ 000002F5  74 0C			je _LoadPortraitPlate
+
+					; Print the portrait without plate
+ 000002F7  68 000000A7 R		push OFFSET portrait_file
+ 000002FC  E8 FFFFFD61			call printTextFile
+ 00000301  EB 0A			jmp _Leave
+
+ 00000303			_LoadPortraitPlate:
+					; Print the portrait with plate name
+ 00000303  68 000000B7 R		push OFFSET portrait_plate_file
+ 00000308  E8 FFFFFD55			call printTextFile
+
+ 0000030D			_Leave:
+ 0000030D  58				pop EAX
+ 0000030E  5D				pop EBP
+ 0000030F  C2 0004			ret 4
+ 00000312			printPortrait ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: printOuijaBoard
+				;
+				; Reads laptop screen file and displays. Waits for user to exit.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Saves and restores EBP, EAX, EDX.
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 00000312			printOuijaBoard PROC
+					; Get the cursor
+					getCursorPos
+ 00000312  50		     1		push EAX
+ 00000313  6A F5	   *	    push    -00000000Bh
+ 00000315  E8 00000000 E   *	    call   GetStdHandle
+ 0000031A  A3 0000001A R     1		mov hStdOut, EAX
+ 0000031F  68 00000000 R   *	    push   OFFSET CursorPos
+ 00000324  FF 35 0000001A R *	    push   hStdOut
+ 0000032A  E8 00000000 E   *	    call   GetConsoleScreenBufferInfo
+ 0000032F  58		     1		pop EAX
+
+					; T
+ 00000330  68 00001086 R		push OFFSET ouijaT
+ 00000335  E8 FFFFFD28			call printTextFile
+
+					; Return cursor to original position
+					invoke moveCursor, CursorPos.dwCursorPosition.X, CursorPos.dwCursorPosition.Y
+ 0000033A  83 EC 02	   *	    sub    esp, 002h
+ 0000033D  66| FF 35
+	   00000006 R	   *	    push   word  ptr CursorPos+00006h
+ 00000344  83 EC 02	   *	    sub    esp, 002h
+ 00000347  66| FF 35
+	   00000004 R	   *	    push   word  ptr CursorPos+00004h
+ 0000034E  E8 FFFFFCE9	   *	    call   moveCursor
+ 00000353  83 C4 08	   *	    add    esp, 000000008h
+ 00000356  B8 000004B0			mov EAX, DELAY_TIME
+ 0000035B  E8 00000000 E		call Delay
+
+					; O
+ 00000360  68 00001091 R		push OFFSET ouijaO
+ 00000365  E8 FFFFFCF8			call printTextFile
+
+					; Return cursor to original position
+					invoke moveCursor, CursorPos.dwCursorPosition.X, CursorPos.dwCursorPosition.Y
+ 0000036A  83 EC 02	   *	    sub    esp, 002h
+ 0000036D  66| FF 35
+	   00000006 R	   *	    push   word  ptr CursorPos+00006h
+ 00000374  83 EC 02	   *	    sub    esp, 002h
+ 00000377  66| FF 35
+	   00000004 R	   *	    push   word  ptr CursorPos+00004h
+ 0000037E  E8 FFFFFCB9	   *	    call   moveCursor
+ 00000383  83 C4 08	   *	    add    esp, 000000008h
+ 00000386  B8 000004B0			mov EAX, DELAY_TIME
+ 0000038B  E8 00000000 E		call Delay
+
+	; W
+ 00000390  68 0000109C R		push OFFSET ouijaW
+ 00000395  E8 FFFFFCC8			call printTextFile
+
+					; Return cursor to original position
+					invoke moveCursor, CursorPos.dwCursorPosition.X, CursorPos.dwCursorPosition.Y
+ 0000039A  83 EC 02	   *	    sub    esp, 002h
+ 0000039D  66| FF 35
+	   00000006 R	   *	    push   word  ptr CursorPos+00006h
+ 000003A4  83 EC 02	   *	    sub    esp, 002h
+ 000003A7  66| FF 35
+	   00000004 R	   *	    push   word  ptr CursorPos+00004h
+ 000003AE  E8 FFFFFC89	   *	    call   moveCursor
+ 000003B3  83 C4 08	   *	    add    esp, 000000008h
+ 000003B6  B8 000004B0			mov EAX, DELAY_TIME
+ 000003BB  E8 00000000 E		call Delay
+
+					; E
+ 000003C0  68 000010A7 R		push OFFSET ouijaE
+ 000003C5  E8 FFFFFC98			call printTextFile
+
+					; Return cursor to original position
+					invoke moveCursor, CursorPos.dwCursorPosition.X, CursorPos.dwCursorPosition.Y
+ 000003CA  83 EC 02	   *	    sub    esp, 002h
+ 000003CD  66| FF 35
+	   00000006 R	   *	    push   word  ptr CursorPos+00006h
+ 000003D4  83 EC 02	   *	    sub    esp, 002h
+ 000003D7  66| FF 35
+	   00000004 R	   *	    push   word  ptr CursorPos+00004h
+ 000003DE  E8 FFFFFC59	   *	    call   moveCursor
+ 000003E3  83 C4 08	   *	    add    esp, 000000008h
+ 000003E6  B8 000004B0			mov EAX, DELAY_TIME
+ 000003EB  E8 00000000 E		call Delay
+
+					; R
+ 000003F0  68 000010B2 R		push OFFSET ouijaR
+ 000003F5  E8 FFFFFC68			call printTextFile
+ 000003FA  E8 00000000 E		call Delay
+
+					; Leave
+ 000003FF  C3				ret
+ 00000400			printOuijaBoard ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: runLevel0
+				;
+				; Runs Level 0 of game.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Saves and restores EBP, EAX, EDX.
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 00000400			runLevel0	PROC USES EAX EDX
+
+ 00000400  50		   *	    push   eax
+ 00000401  52		   *	    push   edx
+ 00000402			_DisplayOptions0:
+					; Print starting choices
+ 00000402  68 0000130E R		push OFFSET level0_options0
+ 00000407  E8 FFFFFCD1			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 3, EAX
+ 0000040C  83 F8 01	     1		cmp EAX, 1
+ 0000040F  7C 07	     1		jl ??0003
+ 00000411  83 F8 03	     1		cmp EAX, 3
+ 00000414  7F 02	     1		jg ??0003
+ 00000416  EB 05	     1		jmp ??0004
+ 00000418		     1	??0003:
+ 00000418  B8 00000000	     1		mov EAX, 0
+ 0000041D		     1	??0004:
+ 0000041D  83 F8 00			cmp EAX, 0
+ 00000420  74 E0			je _DisplayOptions0
+
+					; Check if choice 1
+ 00000422  83 F8 01			cmp EAX, 1
+ 00000425  75 38			jne _Choice0_2
+					
+ 00000427			_DisplayOptions0_1:
+					; Turns toward car
+ 00000427  68 00001396 R		push OFFSET level0_options0_choice1_options
+ 0000042C  E8 FFFFFCAC			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 2, EAX
+ 00000431  83 F8 01	     1		cmp EAX, 1
+ 00000434  7C 07	     1		jl ??0005
+ 00000436  83 F8 02	     1		cmp EAX, 2
+ 00000439  7F 02	     1		jg ??0005
+ 0000043B  EB 05	     1		jmp ??0006
+ 0000043D		     1	??0005:
+ 0000043D  B8 00000000	     1		mov EAX, 0
+ 00000442		     1	??0006:
+ 00000442  83 F8 00			cmp EAX, 0
+ 00000445  74 E0			je _DisplayOptions0_1
+
+					; Check if choice 1
+ 00000447  83 F8 01			cmp EAX, 1
+ 0000044A  75 11			jne _Choice0_1_2
+
+					; Moves towards car
+ 0000044C  68 00001404 R		push OFFSET level0_options0_options1_choice1_dialogue
+ 00000451  E8 FFFFFC5A			call printDialogue
+
+ 00000456  E8 FFFFFCD1			call fatalChoice
+ 0000045B  EB CA			jmp _DisplayOptions0_1
+
+ 0000045D			_Choice0_1_2:
+					; Goes back to door
+ 0000045D  EB A3			jmp _DisplayOptions0
+
+ 0000045F			_Choice0_2:
+ 0000045F  83 F8 02			cmp EAX, 2
+ 00000462  75 0C			jne _NextLevel
+
+					; Turns towards bikes
+ 00000464  68 00001436 R		push OFFSET level0_options0_choice2_dialogue
+ 00000469  E8 FFFFFC42			call printDialogue
+ 0000046E  EB 92			jmp _DisplayOptions0
+
+ 00000470			_NextLevel:	
+					; Move to next level
+					; Procedure cleanup
+					ret
+ 00000470  5A		   *	    pop    edx
+ 00000471  58		   *	    pop    eax
+ 00000472  C3		   *	    ret    00000h
+ 00000473			runLevel0 ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: runLevel1
+				;
+				; Runs Level 1 of game_ Successfully completing the level will result in returning
+				; to main.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Saves and restores EBP, EAX, EDX.
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 00000473			runLevel1	PROC USES EAX EDX
+
+ 00000473  50		   *	    push   eax
+ 00000474  52		   *	    push   edx
+ 00000475			_DisplayOptions0:
+					; Print starting choices
+ 00000475  68 00001489 R		push OFFSET level1_options0
+ 0000047A  E8 FFFFFC5E			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 3, EAX
+ 0000047F  83 F8 01	     1		cmp EAX, 1
+ 00000482  7C 07	     1		jl ??0007
+ 00000484  83 F8 03	     1		cmp EAX, 3
+ 00000487  7F 02	     1		jg ??0007
+ 00000489  EB 05	     1		jmp ??0008
+ 0000048B		     1	??0007:
+ 0000048B  B8 00000000	     1		mov EAX, 0
+ 00000490		     1	??0008:
+ 00000490  83 F8 00			cmp EAX, 0
+ 00000493  74 E0			je _DisplayOptions0
+
+					; Check if choice 1
+ 00000495  83 F8 01			cmp EAX, 1
+ 00000498  75 16			jne _DisplayOptions0_2
+					
+					; Check if we can open door
+ 0000049A  66| 83 3D			cmp level1_keyFound, 1
+	   00001487 R 01
+ 000004A2  74 5A			je _NextLevel
+
+					; No key so go back to top choices
+ 000004A4  68 000014DD R		push OFFSET level1_options0_choice1_noKey
+ 000004A9  E8 FFFFFC02			call printDialogue
+ 000004AE  EB C5			jmp _DisplayOptions0
+
+ 000004B0			_DisplayOptions0_2:
+ 000004B0  68 00001555 R		push OFFSET level1_options0_choice2_options
+ 000004B5  E8 FFFFFC23			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 2, EAX
+ 000004BA  83 F8 01	     1		cmp EAX, 1
+ 000004BD  7C 07	     1		jl ??0009
+ 000004BF  83 F8 02	     1		cmp EAX, 2
+ 000004C2  7F 02	     1		jg ??0009
+ 000004C4  EB 05	     1		jmp ??000A
+ 000004C6		     1	??0009:
+ 000004C6  B8 00000000	     1		mov EAX, 0
+ 000004CB		     1	??000A:
+ 000004CB  83 F8 00			cmp EAX, 0
+ 000004CE  74 E0			je _DisplayOptions0_2
+
+ 000004D0  83 F8 01			cmp EAX, 1
+ 000004D3  75 11			jne _Choice2_2
+
+					; Tries searching plant
+ 000004D5  68 000015D9 R		push OFFSET level1_options0_options2_choice1_dialogue
+ 000004DA  E8 FFFFFBD1			call printDialogue
+ 000004DF  E8 FFFFFC48			call fatalChoice
+ 000004E4  EB CA			jmp _DisplayOptions0_2
+
+ 000004E6			_Choice2_2:
+					; Lifts mat
+ 000004E6  68 000015FB R		push OFFSET level1_options0_options2_choice2_dialogue
+ 000004EB  E8 FFFFFBC0			call printDialogue
+ 000004F0  66| C7 05			mov level1_keyFound, 1
+	   00001487 R
+	   0001
+ 000004F9  E9 FFFFFF77			jmp _DisplayOptions0
+
+ 000004FE			_NextLevel:	
+					; Opens door, move to next level
+ 000004FE  68 0000151A R		push OFFSET level1_options0_choice1_key
+ 00000503  E8 FFFFFBA8			call printDialogue
+
+					; Procedure cleanup
+					ret
+ 00000508  5A		   *	    pop    edx
+ 00000509  58		   *	    pop    eax
+ 0000050A  C3		   *	    ret    00000h
+ 0000050B			runLevel1 ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: runLevel2
+				;
+				; Runs Level 2 of game. Successfully completing the level will result in returning
+				; to main.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Saves and restores EBP, EAX, EDX.
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 0000050B			runLevel2	PROC USES EAX EDX
+
+ 0000050B  50		   *	    push   eax
+ 0000050C  52		   *	    push   edx
+ 0000050D			_DisplayOptions0:
+					; Print starting choices
+ 0000050D  68 00001639 R		push OFFSET level2_options0
+ 00000512  E8 FFFFFBC6			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 2, EAX
+ 00000517  83 F8 01	     1		cmp EAX, 1
+ 0000051A  7C 07	     1		jl ??000B
+ 0000051C  83 F8 02	     1		cmp EAX, 2
+ 0000051F  7F 02	     1		jg ??000B
+ 00000521  EB 05	     1		jmp ??000C
+ 00000523		     1	??000B:
+ 00000523  B8 00000000	     1		mov EAX, 0
+ 00000528		     1	??000C:
+ 00000528  83 F8 00			cmp EAX, 0
+ 0000052B  74 E0			je _DisplayOptions0
+
+ 0000052D  83 F8 01			cmp EAX, 1
+ 00000530  75 0C			jne _Choice0_2
+
+					; Bravely pushes door open
+ 00000532  68 000016BB R		push OFFSET level2_options0_choice1_dialgoue
+ 00000537  E8 FFFFFB74	call printDialogue
+ 0000053C  EB 0A			jmp _DisplayOptions1
+
+ 0000053E			_Choice0_2:
+					; Fearfully waits
+ 0000053E  68 00001732 R		push OFFSET level2_options0_choice2_dialgoue
+ 00000543  E8 FFFFFB68			call printDialogue
+
+ 00000548			_DisplayOptions1:
+					; Move onto main room options
+ 00000548  68 000017E2 R		push OFFSET level2_options1
+ 0000054D  E8 FFFFFB8B			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 4, EAX
+ 00000552  83 F8 01	     1		cmp EAX, 1
+ 00000555  7C 07	     1		jl ??000D
+ 00000557  83 F8 04	     1		cmp EAX, 4
+ 0000055A  7F 02	     1		jg ??000D
+ 0000055C  EB 05	     1		jmp ??000E
+ 0000055E		     1	??000D:
+ 0000055E  B8 00000000	     1		mov EAX, 0
+ 00000563		     1	??000E:
+ 00000563  83 F8 00			cmp EAX, 0
+ 00000566  74 E0			je _DisplayOptions1
+
+ 00000568  83 F8 01			cmp EAX, 1
+ 0000056B  75 0C			jne _Choice1_2
+					
+					; Try to switch on light
+ 0000056D  68 0000192C R		push OFFSET level2_options1_choice1_dialogue
+ 00000572  E8 FFFFFB39			call printDialogue
+ 00000577  EB CF			jmp _DisplayOptions1
+
+ 00000579			_Choice1_2:
+ 00000579  83 F8 02			cmp EAX, 2
+ 0000057C  75 64			jne _Choice1_3
+
+ 0000057E			_DisplayOptions1_2:
+					; Move onto desk options
+ 0000057E  68 00001960 R		push OFFSET level2_options1_options2
+ 00000583  E8 FFFFFB55			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 4, EAX
+ 00000588  83 F8 01	     1		cmp EAX, 1
+ 0000058B  7C 07	     1		jl ??000F
+ 0000058D  83 F8 04	     1		cmp EAX, 4
+ 00000590  7F 02	     1		jg ??000F
+ 00000592  EB 05	     1		jmp ??0010
+ 00000594		     1	??000F:
+ 00000594  B8 00000000	     1		mov EAX, 0
+ 00000599		     1	??0010:
+ 00000599  83 F8 00			cmp EAX, 0
+ 0000059C  74 E0			je _DisplayOptions1_2
+
+ 0000059E  83 F8 01			cmp EAX, 1
+ 000005A1  75 11			jne _Choice1_2_2
+
+					; Open laptop
+ 000005A3  68 000019F3 R		push OFFSET level2_options1_options2_choice1_dialogue
+ 000005A8  E8 FFFFFB03			call printDialogue
+ 000005AD  E8 FFFFFBF8			call printLaptopScreen
+ 000005B2  EB CA			jmp _DisplayOptions1_2
+
+ 000005B4			_Choice1_2_2:
+ 000005B4  83 F8 02			cmp EAX, 2
+ 000005B7  75 0C			jne _Choice1_2_3
+
+					; Looks around desk
+ 000005B9  68 00001A69 R		push OFFSET level2_options1_options2_choice2_dialogue
+ 000005BE  E8 FFFFFAED			call printDialogue
+ 000005C3  EB B9			jmp _DisplayOptions1_2
+
+ 000005C5			_Choice1_2_3:
+ 000005C5  83 F8 03			cmp EAX, 3
+ 000005C8  75 13			jne _Choice1_2_4
+
+					; Finds flashlgiht
+ 000005CA  68 00001AA1 R		push OFFSET level2_options1_options2_choice3_dialogue
+ 000005CF  E8 FFFFFADC			call printDialogue
+ 000005D4  C6 05 00001638 R		mov level2_flashlightFound, 1
+	   01
+ 000005DB  EB A1			jmp _DisplayOptions1_2
+
+ 000005DD			_Choice1_2_4:
+					; Go back to looking around th room
+ 000005DD  E9 FFFFFF66			jmp _DisplayOptions1
+
+ 000005E2			_Choice1_3:
+ 000005E2  83 F8 03			cmp EAX, 3
+ 000005E5  75 7D			jne _Choice1_4
+
+ 000005E7			_DisplayOptions1_3:
+					; Move onto cat options
+ 000005E7  68 00001AD4 R		push OFFSET level2_options1_options3
+ 000005EC  E8 FFFFFAEC			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 4, EAX
+ 000005F1  83 F8 01	     1		cmp EAX, 1
+ 000005F4  7C 07	     1		jl ??0011
+ 000005F6  83 F8 04	     1		cmp EAX, 4
+ 000005F9  7F 02	     1		jg ??0011
+ 000005FB  EB 05	     1		jmp ??0012
+ 000005FD		     1	??0011:
+ 000005FD  B8 00000000	     1		mov EAX, 0
+ 00000602		     1	??0012:
+ 00000602  83 F8 00			cmp EAX, 0
+ 00000605  74 E0			je _DisplayOptions1_3
+
+ 00000607  83 F8 01			cmp EAX, 1
+ 0000060A  75 2C			jne _Choice1_3_2
+
+ 0000060C			_DisplayOptions1_3_2_1:
+					; Scratches ears
+ 0000060C  68 00001B7A R		push OFFSET level2_options1_options3_options1
+ 00000611  E8 FFFFFAC7			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 1, EAX
+ 00000616  83 F8 01	     1		cmp EAX, 1
+ 00000619  7C 07	     1		jl ??0013
+ 0000061B  83 F8 01	     1		cmp EAX, 1
+ 0000061E  7F 02	     1		jg ??0013
+ 00000620  EB 05	     1		jmp ??0014
+ 00000622		     1	??0013:
+ 00000622  B8 00000000	     1		mov EAX, 0
+ 00000627		     1	??0014:
+ 00000627  83 F8 01			cmp EAX, 1
+ 0000062A  75 E0			jne _DisplayOptions1_3_2_1
+
+					; Show the sticky note hint
+ 0000062C  68 00000098 R		push OFFSET sticky_note_file
+ 00000631  E8 FFFFFA2C			call printTextFile
+ 00000636  EB AF			jmp _DisplayOptions1_3
+
+ 00000638			_Choice1_3_2:
+ 00000638  83 F8 02			cmp EAX, 2
+ 0000063B  75 11			jne _Choice1_3_3
+
+					; Scratches tummy
+ 0000063D  68 00001BD9 R		push OFFSET level2_options1_options3_choice2_dialogue
+ 00000642  E8 FFFFFA69			call printDialogue
+ 00000647  E8 FFFFFAE0			call fatalChoice
+ 0000064C  EB 99			jmp _DisplayOptions1_3
+
+ 0000064E			_Choice1_3_3:
+ 0000064E  83 F8 03			cmp EAX, 3
+ 00000651  75 0C			jne _Choice1_3_4
+
+					; Inspect stomach
+ 00000653  68 00001C60 R		push OFFSET level2_options1_options3_choice3_dialogue
+ 00000658  E8 FFFFFA53			call printDialogue
+ 0000065D  EB 88			jmp _DisplayOptions1_3
+
+ 0000065F			_Choice1_3_4:
+					; Go back to living room
+ 0000065F  E9 FFFFFEE4			jmp _DisplayOptions1
+
+ 00000664			_Choice1_4:
+ 00000664  80 3D 00001638 R		cmp level2_flashlightFound, 0
+	   00
+ 0000066B  75 0F			jne _CheckDiary
+
+					; No flashlight yet
+ 0000066D  68 00001C6D R		push OFFSET level2_options1_choice4_noFlashlight
+ 00000672  E8 FFFFFA39			call printDialogue
+ 00000677  E9 FFFFFECC			jmp _DisplayOptions1
+
+ 0000067C			_CheckDiary:
+ 0000067C  80 3D 00001637 R		cmp level2_diaryFound, 0
+	   00
+ 00000683  75 0F			jne _NextLevel
+
+					; No diary yet
+ 00000685  68 00001D1F R		push OFFSET level2_options1_choice4_noDiary
+ 0000068A  E8 FFFFFA21			call printDialogue
+ 0000068F  E9 FFFFFEB4			jmp _DisplayOptions1
+
+ 00000694			_NextLevel:	
+					; Opens door, move to next level
+ 00000694  68 00001D7C R		push OFFSET level2_options1_choice4_nextLevel
+ 00000699  E8 FFFFFA12			call printDialogue
+
+					; Procedure cleanup
+					ret
+ 0000069E  5A		   *	    pop    edx
+ 0000069F  58		   *	    pop    eax
+ 000006A0  C3		   *	    ret    00000h
+ 000006A1			runLevel2 ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: runLevel3
+				;
+				; Runs Level 3 of game. Successfully completing the level will result in returning
+				; to main.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Saves and restores EBP, EAX, EDX.
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 000006A1			runLevel3	PROC USES EAX EDX
+ 000006A1  50		   *	    push   eax
+ 000006A2  52		   *	    push   edx
+ 000006A3			_DisplayOptions0:
+					; Print starting choices
+ 000006A3  68 00001E38 R		push OFFSET level3_options0
+ 000006A8  E8 FFFFFA30			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 3, EAX
+ 000006AD  83 F8 01	     1		cmp EAX, 1
+ 000006B0  7C 07	     1		jl ??0015
+ 000006B2  83 F8 03	     1		cmp EAX, 3
+ 000006B5  7F 02	     1		jg ??0015
+ 000006B7  EB 05	     1		jmp ??0016
+ 000006B9		     1	??0015:
+ 000006B9  B8 00000000	     1		mov EAX, 0
+ 000006BE		     1	??0016:
+ 000006BE  83 F8 00			cmp EAX, 0
+ 000006C1  74 E0			je _DisplayOptions0
+
+ 000006C3  83 F8 01			cmp EAX, 1
+ 000006C6  75 19			jne _Choice0_2
+
+					; Check closet
+ 000006C8  80 3D 00001E37 R		cmp level3_doorFound, 1
+	   01
+ 000006CF  0F 84 00000194		je _NextLevel
+
+					; Don't see secret door yet
+ 000006D5  68 00001F16 R		push OFFSET level3_options0_choice1_noDoor
+ 000006DA  E8 FFFFF9D1			call printDialogue
+ 000006DF  EB C2			jmp _DisplayOptions0
+
+ 000006E1			_Choice0_2:
+ 000006E1  83 F8 02			cmp EAX, 2
+ 000006E4  0F 85 000000AF		jne _DisplayOptions0_3
+
+ 000006EA			_DisplayOptions0_2:
+					; Print options for bookshelf
+ 000006EA  68 00001FB2 R		push OFFSET level3_options0_choice2_options
+ 000006EF  E8 FFFFF9E9			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 3, EAX
+ 000006F4  83 F8 01	     1		cmp EAX, 1
+ 000006F7  7C 07	     1		jl ??0017
+ 000006F9  83 F8 03	     1		cmp EAX, 3
+ 000006FC  7F 02	     1		jg ??0017
+ 000006FE  EB 05	     1		jmp ??0018
+ 00000700		     1	??0017:
+ 00000700  B8 00000000	     1		mov EAX, 0
+ 00000705		     1	??0018:
+ 00000705  83 F8 00			cmp EAX, 0
+ 00000708  74 E0			je _DisplayOptions0_2
+
+ 0000070A  83 F8 01			cmp EAX, 1
+ 0000070D  75 0C			jne _Choice0_2_2
+
+					; Looks at armchair
+ 0000070F  68 00002074 R		push OFFSET level3_options0_options2_choice1_dialogue
+ 00000714  E8 FFFFF997			call printDialogue
+ 00000719  EB CF			jmp _DisplayOptions0_2
+
+ 0000071B			_Choice0_2_2:
+ 0000071B  83 F8 02			cmp EAX, 2
+ 0000071E  75 74			jne _Choice0_2_3
+
+					; Check if the name on the portrait has been found yet
+ 00000720  80 3D 00001E36 R		cmp level3_nameFound, 1
+	   01
+ 00000727  74 0C			je _DisplayOptions0_2_2
+
+					; Can't look at books yet
+ 00000729  68 000020C3 R		push OFFSET level3_options0_options2_choice2_dialogue
+ 0000072E  E8 FFFFF97D			call printDialogue
+ 00000733  EB B5			jmp _DisplayOptions0_2
+
+ 00000735			_DisplayOptions0_2_2:
+					; Look at books
+ 00000735  68 0000212A R		push OFFSET level3_options0_options2_choice2_options
+ 0000073A  E8 FFFFF99E			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 5, EAX
+ 0000073F  83 F8 01	     1		cmp EAX, 1
+ 00000742  7C 07	     1		jl ??0019
+ 00000744  83 F8 05	     1		cmp EAX, 5
+ 00000747  7F 02	     1		jg ??0019
+ 00000749  EB 05	     1		jmp ??001A
+ 0000074B		     1	??0019:
+ 0000074B  B8 00000000	     1		mov EAX, 0
+ 00000750		     1	??001A:
+ 00000750  83 F8 00			cmp EAX, 0
+ 00000753  74 E0			je _DisplayOptions0_2_2
+
+ 00000755  83 F8 03			cmp EAX, 3
+ 00000758  74 16			je _Choice0_2_2_3
+ 0000075A  83 F8 04			cmp EAX, 4
+ 0000075D  74 24			je _Choice0_2_2_4
+ 0000075F  83 F8 05			cmp EAX, 5
+ 00000762  74 2B			je _Choice0_2_2_5
+					
+					; Incorrect book
+ 00000764  68 0000228B R		push OFFSET level3_options0_options2_incorrectBook
+ 00000769  E8 FFFFF942			call printDialogue
+ 0000076E  EB C5			jmp _DisplayOptions0_2_2
+
+ 00000770			_Choice0_2_2_3:
+					; Spinach book chosen
+ 00000770  68 00002212 R		push OFFSET level3_options0_options2_correctBook
+ 00000775  E8 FFFFF936			call printDialogue
+ 0000077A  C6 05 00001E35 R		mov level3_bookFound, 1
+	   01
+ 00000781  EB B2			jmp _DisplayOptions0_2_2
+
+
+ 00000783			_Choice0_2_2_4:
+					; The legend of stormageddon
+ 00000783  68 000010D1 R		push OFFSET captainBook
+ 00000788  E8 FFFFF8D5			call printTextFile
+ 0000078D  EB A6			jmp _DisplayOptions0_2_2
+
+ 0000078F			_Choice0_2_2_5:
+					; Return to study
+ 0000078F  E9 FFFFFF56			jmp _DisplayOptions0_2
+
+ 00000794			_Choice0_2_3:
+					; Return to the hallway
+ 00000794  E9 FFFFFF0A			jmp _DisplayOptions0
+
+ 00000799			_DisplayOptions0_3:
+					; Look at the portrait
+ 00000799  80 3D 00001E36 R		cmp level3_nameFound, 0
+	   00
+ 000007A0  74 18			je _NoPlateOptions
+ 000007A2  80 3D 00001E35 R		cmp level3_bookFound, 1
+	   01
+ 000007A9  74 58			je _BookFoundOptions
+
+ 000007AB			_NoBookOptions:
+					; Print the dialogue with plate but without the book
+ 000007AB  68 000023D2 R		push OFFSET level3_options0_choice3_dialogue
+ 000007B0  E8 FFFFF8FB			call printDialogue
+ 000007B5  E9 000000A3			jmp _Choice0_3_4
+
+ 000007BA			_NoPlateOptions:
+ 000007BA  B8 00000000			mov EAX, 0
+ 000007BF  50				push EAX
+ 000007C0  E8 FFFFFB26			call printPortrait
+
+					; Print the options without the plaque
+ 000007C5  68 000022D5 R		push OFFSET level3_options0_choice3_options_noPlate
+ 000007CA  E8 FFFFF90E			call printOptions
+					
+					; Make sure choice is valid
+					checkChoice 1, 1, EAX
+ 000007CF  83 F8 01	     1		cmp EAX, 1
+ 000007D2  7C 07	     1		jl ??001B
+ 000007D4  83 F8 01	     1		cmp EAX, 1
+ 000007D7  7F 02	     1		jg ??001B
+ 000007D9  EB 05	     1		jmp ??001C
+ 000007DB		     1	??001B:
+ 000007DB  B8 00000000	     1		mov EAX, 0
+ 000007E0		     1	??001C:
+ 000007E0  83 F8 00			cmp EAX, 0
+ 000007E3  74 D5			je _NoPlateOptions
+
+ 000007E5  B8 00000001			mov EAX, 1
+ 000007EA  50				push EAX
+ 000007EB  E8 FFFFFAFB			call printPortrait
+
+ 000007F0  68 000023D2 R		push OFFSET level3_options0_choice3_dialogue
+ 000007F5  E8 FFFFF8B6			call printDialogue
+
+ 000007FA  C6 05 00001E36 R		mov level3_nameFound, 1
+	   01
+ 00000801  EB 5A			jmp _Choice0_3_4
+
+ 00000803			_BookFoundOptions:
+ 00000803  68 0000248E R		push OFFSET level3_options0_choice3_options_book
+ 00000808  E8 FFFFF8D0			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 4, EAX
+ 0000080D  83 F8 01	     1		cmp EAX, 1
+ 00000810  7C 07	     1		jl ??001D
+ 00000812  83 F8 04	     1		cmp EAX, 4
+ 00000815  7F 02	     1		jg ??001D
+ 00000817  EB 05	     1		jmp ??001E
+ 00000819		     1	??001D:
+ 00000819  B8 00000000	     1		mov EAX, 0
+ 0000081E		     1	??001E:
+ 0000081E  83 F8 00			cmp EAX, 0
+ 00000821  74 E0			je _BookFoundOptions
+
+ 00000823  83 F8 01			cmp EAX, 1
+ 00000826  75 0C			jne _Choice0_3_2
+
+					; Selected the pipe, fatal error
+ 00000828  68 00002579 R		push OFFSET level3_options0_options3_choice1
+ 0000082D  E8 FFFFF87E			call printDialogue
+ 00000832  EB 2E			jmp _BadChoice
+
+ 00000834			_Choice0_3_2:
+ 00000834  83 F8 02			cmp EAX, 2
+ 00000837  75 0C			jne _Choice0_3_3
+
+					; Selected the eyepatch, fatal error
+ 00000839  68 000025C9 R		push OFFSET level3_options0_options3_choice2
+ 0000083E  E8 FFFFF86D			call printDialogue
+ 00000843  EB 1D			jmp _BadChoice
+
+ 00000845			_Choice0_3_3:
+ 00000845  83 F8 03			cmp EAX, 3
+ 00000848  75 13			jne _Choice0_3_4
+
+					; Selected the nose, correct
+ 0000084A  68 00002655 R		push OFFSET level3_options0_options3_choice3
+ 0000084F  E8 FFFFF85C			call printDialogue
+ 00000854  C6 05 00001E37 R		mov level3_doorFound, 1
+	   01
+ 0000085B  EB 00			jmp _Choice0_3_4
+
+ 0000085D			_Choice0_3_4:
+					; Return to the hallway
+ 0000085D  E9 FFFFFE41			jmp _DisplayOptions0
+
+ 00000862			_BadChoice:	
+ 00000862  E8 FFFFF8C5			call fatalChoice
+ 00000867  EB 9A			jmp _BookFoundOptions
+
+ 00000869			_NextLevel:
+ 00000869  68 00001F4B R		push OFFSET level3_options0_choice1_secretDoor
+ 0000086E  E8 FFFFF83D			call printDialogue
+
+					ret
+ 00000873  5A		   *	    pop    edx
+ 00000874  58		   *	    pop    eax
+ 00000875  C3		   *	    ret    00000h
+ 00000876			runLevel3 ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: runLevel4
+				;
+				; Runs Level 4 of game. Successfully completing the level will result in returning
+				; to main.
+				;
+				; Preconditions: none.
+				;
+				; Postconditions: Saves and restores EBP, EAX, EDX.
+				;
+				; Returns: none.
+				; ---------------------------------------------------------------------------------
+ 00000876			runLevel4	PROC USES EAX EDX
+ 00000876  50		   *	    push   eax
+ 00000877  52		   *	    push   edx
+ 00000878			_DisplayOptions0:
+					; Print starting choices
+ 00000878  68 00002729 R		push OFFSET level4_options0
+ 0000087D  E8 FFFFF85B			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 3, EAX
+ 00000882  83 F8 01	     1		cmp EAX, 1
+ 00000885  7C 07	     1		jl ??001F
+ 00000887  83 F8 03	     1		cmp EAX, 3
+ 0000088A  7F 02	     1		jg ??001F
+ 0000088C  EB 05	     1		jmp ??0020
+ 0000088E		     1	??001F:
+ 0000088E  B8 00000000	     1		mov EAX, 0
+ 00000893		     1	??0020:
+ 00000893  83 F8 00			cmp EAX, 0
+ 00000896  74 E0			je _DisplayOptions0
+
+ 00000898  83 F8 01			cmp EAX, 1
+ 0000089B  0F 85 00000080		jne _Choice0_2
+
+ 000008A1			_DisplayOptions0_1:
+					; Box on table options
+ 000008A1  68 00002820 R		push OFFSET level4_options0_choice1_options
+ 000008A6  E8 FFFFF832			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 3, EAX
+ 000008AB  83 F8 01	     1		cmp EAX, 1
+ 000008AE  7C 07	     1		jl ??0021
+ 000008B0  83 F8 03	     1		cmp EAX, 3
+ 000008B3  7F 02	     1		jg ??0021
+ 000008B5  EB 05	     1		jmp ??0022
+ 000008B7		     1	??0021:
+ 000008B7  B8 00000000	     1		mov EAX, 0
+ 000008BC		     1	??0022:
+ 000008BC  83 F8 00			cmp EAX, 0
+ 000008BF  74 E0			je _DisplayOptions0_1
+
+ 000008C1  83 F8 01			cmp EAX, 1
+ 000008C4  75 0C			jne _Choice0_1_2
+					
+					; Show the note
+ 000008C6  68 0000106D R		push OFFSET txtPuzzle
+ 000008CB  E8 FFFFF792			call printTextFile
+ 000008D0  EB CF			jmp _DisplayOptions0_1
+
+ 000008D2			_Choice0_1_2:
+ 000008D2  83 F8 02			cmp EAX, 2
+ 000008D5  75 45			jne _Choice0_1_3
+
+					; Prompt for combo
+ 000008D7  BA 0000293E R		mov EDX, OFFSET level4_options0_options1_choice2_promptCombo
+ 000008DC  E8 00000000 E		call WriteString
+
+					; Read string from user
+ 000008E1  BA 00002938 R		mov EDX, OFFSET level4_options0_options1_choice2_combo
+ 000008E6  B9 00000006			mov ECX, SIZEOF level4_options0_options1_choice2_combo
+ 000008EB  E8 00000000 E		call ReadString
+					
+					; Compare string to solution
+ 000008F0  FC				cld
+ 000008F1  8B C8			mov ECX, EAX
+ 000008F3  BE 000026BB R		mov ESI, OFFSET level4_combo
+ 000008F8  8B FA			mov EDI, EDX
+ 000008FA  F3/ A6			repe cmpsb
+ 000008FC  67& E3 02			jcxz _correctCombo
+ 000008FF  EB 0F			jmp _incorrectCombo
+
+ 00000901			_correctCombo:
+ 00000901  68 00002992 R		push OFFSET level4_options0_options1_choice2_rightCombo
+ 00000906  E8 FFFFF7A5			call printDialogue
+ 0000090B  E9 000000C5			jmp _Leave
+
+ 00000910			_incorrectCombo:
+ 00000910  68 00002978 R		push OFFSET level4_options0_options1_choice2_wrongCombo
+ 00000915  E8 FFFFF796			call printDialogue
+ 0000091A  EB 85			jmp _DisplayOptions0_1
+
+ 0000091C			_Choice0_1_3:
+					; return to middle of room
+ 0000091C  E9 FFFFFF57			jmp _DisplayOptions0
+
+ 00000921			_Choice0_2:
+ 00000921  83 F8 02			cmp EAX, 2
+ 00000924  75 47			jne _DisplayOptions0_3
+
+ 00000926			_DisplayOptions0_2:
+					; The shrine
+ 00000926  68 000029C2 R		push OFFSET level4_options0_choice2_options
+ 0000092B  E8 FFFFF7AD			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 3, EAX
+ 00000930  83 F8 01	     1		cmp EAX, 1
+ 00000933  7C 07	     1		jl ??0023
+ 00000935  83 F8 03	     1		cmp EAX, 3
+ 00000938  7F 02	     1		jg ??0023
+ 0000093A  EB 05	     1		jmp ??0024
+ 0000093C		     1	??0023:
+ 0000093C  B8 00000000	     1		mov EAX, 0
+ 00000941		     1	??0024:
+ 00000941  83 F8 00			cmp EAX, 0
+ 00000944  74 E0			je _DisplayOptions0_2
+
+ 00000946  83 F8 01			cmp EAX, 1
+ 00000949  75 0C			jne _Choice0_2_2
+					
+					; Look at the tarot cards
+ 0000094B  68 00002B04 R		push OFFSET level4_options0_options2_choice1
+ 00000950  E8 FFFFF75B			call printDialogue
+ 00000955  EB CF			jmp _DisplayOptions0_2
+
+ 00000957			_Choice0_2_2:
+ 00000957  83 F8 02			cmp EAX, 2
+ 0000095A  75 0C			jne _Choice0_2_3
+
+					; Pick up on of the mice
+ 0000095C  68 00002B78 R		push OFFSET level4_options0_options2_choice2
+ 00000961  E8 FFFFF74A			call printDialogue
+ 00000966  EB BE			jmp _DisplayOptions0_2
+
+ 00000968			_Choice0_2_3:
+					; return to middle of room
+ 00000968  E9 FFFFFF0B			jmp _DisplayOptions0
+
+ 0000096D			_DisplayOptions0_3:
+					; Ouija board
+					; Print board
+ 0000096D  68 0000107C R		push OFFSET ouijaBoard
+ 00000972  E8 FFFFF6EB			call printTextFile
+
+					; Print options
+ 00000977  68 00002BCF R		push OFFSET level4_options0_choice3_options
+ 0000097C  E8 FFFFF75C			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 2, EAX
+ 00000981  83 F8 01	     1		cmp EAX, 1
+ 00000984  7C 07	     1		jl ??0025
+ 00000986  83 F8 02	     1		cmp EAX, 2
+ 00000989  7F 02	     1		jg ??0025
+ 0000098B  EB 05	     1		jmp ??0026
+ 0000098D		     1	??0025:
+ 0000098D  B8 00000000	     1		mov EAX, 0
+ 00000992		     1	??0026:
+ 00000992  83 F8 00			cmp EAX, 0
+ 00000995  74 D6			je _DisplayOptions0_3
+
+ 00000997  83 F8 01			cmp EAX, 1
+ 0000099A  75 34			jne _Choice0_3_2
+					
+ 0000099C			_DisplayOptions0_3_1:
+ 0000099C  68 00002C4E R		push OFFSET level4_options0_options3_options
+ 000009A1  E8 FFFFF737			call printOptions
+
+					; Make sure choice is valid
+					checkChoice 1, 2, EAX
+ 000009A6  83 F8 01	     1		cmp EAX, 1
+ 000009A9  7C 07	     1		jl ??0027
+ 000009AB  83 F8 02	     1		cmp EAX, 2
+ 000009AE  7F 02	     1		jg ??0027
+ 000009B0  EB 05	     1		jmp ??0028
+ 000009B2		     1	??0027:
+ 000009B2  B8 00000000	     1		mov EAX, 0
+ 000009B7		     1	??0028:
+ 000009B7  83 F8 00			cmp EAX, 0
+ 000009BA  74 E0			je _DisplayOptions0_3_1
+
+ 000009BC  83 F8 01			cmp EAX, 1
+ 000009BF  75 0F			jne _Choice0_3_2
+
+					; Print boards
+ 000009C1  E8 FFFFF94C			call printOuijaBoard
+
+ 000009C6  68 00002D7E R		push OFFSET level4_options0_options3_dialogue
+ 000009CB  E8 FFFFF6E0			call printDialogue
+
+ 000009D0			_Choice0_3_2:
+					; return to middle of room
+ 000009D0  E9 FFFFFEA3			jmp _DisplayOptions0
+
+ 000009D5			_Leave:
+ 000009D5  68 00002DCB R		push OFFSET level4_winner_p1
+ 000009DA  E8 FFFFF6D1			call printDialogue
+ 000009DF  68 00002E8D R		push OFFSET level4_winner_p2
+ 000009E4  E8 FFFFF6C7			call printDialogue
+
+					ret
+ 000009E9  5A		   *	    pop    edx
+ 000009EA  58		   *	    pop    eax
+ 000009EB  C3		   *	    ret    00000h
+ 000009EC			runLevel4 ENDP
+
+				; ---------------------------------------------------------------------------------
+				; Name: endGame
+				;
+				; Ends the game_ Different displays depending on a loss or win.
+				;
+				; ---------------------------------------------------------------------------------
+ 000009EC			endGame PROC
+ 000009EC  E8 00000000 E		call CrLf
+ 000009F1  68 000010E1 R		push OFFSET gameOver
+ 000009F6  E8 FFFFF667			call printTextFile
+ 000009FB  E8 00000000 E		call WaitMsg
+
+					Invoke ExitProcess,0	; exit to operating system
+ 00000A00  6A 00	   *	    push   +000000000h
+ 00000A02  E8 00000000 E   *	    call   ExitProcess
+ 00000A07  C3				ret
+ 00000A08			endGame ENDP
+
+				END main
+Microsoft (R) Macro Assembler Version 14.29.30148.0	    12/18/23 11:56:29
+<Stormageddon's Haunted Mansion     (StormageddonsHauntedMan  Symbols 2 - 1
+
+
+
+
+Macros:
+
+                N a m e                 Type
+
+checkChoice  . . . . . . . . . .	Proc
+getCursorPos . . . . . . . . . .	Proc
+getKeyPress  . . . . . . . . . .	Proc
+
+
+Structures and Unions:
+
+                N a m e                  Size
+                                         Offset      Type
+
+CONSOLE_CURSOR_INFO  . . . . . .	 00000008
+  dwSize . . . . . . . . . . . .	 00000000	 DWord
+  bVisible . . . . . . . . . . .	 00000004	 DWord
+CONSOLE_SCREEN_BUFFER_INFO . . .	 00000016
+  dwSize . . . . . . . . . . . .	 00000000	 DWord
+  dwCursorPosition . . . . . . .	 00000004	 DWord
+  wAttributes  . . . . . . . . .	 00000008	 Word
+  srWindow . . . . . . . . . . .	 0000000A	 QWord
+  dwMaximumWindowSize  . . . . .	 00000012	 DWord
+COORD  . . . . . . . . . . . . .	 00000004
+  X  . . . . . . . . . . . . . .	 00000000	 Word
+  Y  . . . . . . . . . . . . . .	 00000002	 Word
+FILETIME . . . . . . . . . . . .	 00000008
+  loDateTime . . . . . . . . . .	 00000000	 DWord
+  hiDateTime . . . . . . . . . .	 00000004	 DWord
+FOCUS_EVENT_RECORD . . . . . . .	 00000004
+  bSetFocus  . . . . . . . . . .	 00000000	 DWord
+FPU_ENVIRON  . . . . . . . . . .	 0000001C
+  controlWord  . . . . . . . . .	 00000000	 Word
+  statusWord . . . . . . . . . .	 00000004	 Word
+  tagWord  . . . . . . . . . . .	 00000008	 Word
+  instrPointerOffset . . . . . .	 0000000C	 DWord
+  instrPointerSelector . . . . .	 00000010	 DWord
+  operandPointerOffset . . . . .	 00000014	 DWord
+  operandPointerSelector . . . .	 00000018	 Word
+INPUT_RECORD . . . . . . . . . .	 00000014
+  EventType  . . . . . . . . . .	 00000000	 Word
+  Event  . . . . . . . . . . . .	 00000004	 XmmWord
+  bKeyDown . . . . . . . . . . .	 00000000	 DWord
+  wRepeatCount . . . . . . . . .	 00000004	 Word
+  wVirtualKeyCode  . . . . . . .	 00000006	 Word
+  wVirtualScanCode . . . . . . .	 00000008	 Word
+  uChar  . . . . . . . . . . . .	 0000000A	 Word
+  UnicodeChar  . . . . . . . . .	 00000000	 Word
+  AsciiChar  . . . . . . . . . .	 00000000	 Byte
+  dwControlKeyState  . . . . . .	 0000000C	 DWord
+  dwMousePosition  . . . . . . .	 00000000	 DWord
+  dwButtonState  . . . . . . . .	 00000004	 DWord
+  dwMouseControlKeyState . . . .	 00000008	 DWord
+  dwEventFlags . . . . . . . . .	 0000000C	 DWord
+  dwSize . . . . . . . . . . . .	 00000000	 DWord
+  dwCommandId  . . . . . . . . .	 00000000	 DWord
+  bSetFocus  . . . . . . . . . .	 00000000	 DWord
+KEY_EVENT_RECORD . . . . . . . .	 00000010
+  bKeyDown . . . . . . . . . . .	 00000000	 DWord
+  wRepeatCount . . . . . . . . .	 00000004	 Word
+  wVirtualKeyCode  . . . . . . .	 00000006	 Word
+  wVirtualScanCode . . . . . . .	 00000008	 Word
+  uChar  . . . . . . . . . . . .	 0000000A	 Word
+  UnicodeChar  . . . . . . . . .	 00000000	 Word
+  AsciiChar  . . . . . . . . . .	 00000000	 Byte
+  dwControlKeyState  . . . . . .	 0000000C	 DWord
+MENU_EVENT_RECORD  . . . . . . .	 00000004
+  dwCommandId  . . . . . . . . .	 00000000	 DWord
+MOUSE_EVENT_RECORD . . . . . . .	 00000010
+  dwMousePosition  . . . . . . .	 00000000	 DWord
+  dwButtonState  . . . . . . . .	 00000004	 DWord
+  dwMouseControlKeyState . . . .	 00000008	 DWord
+  dwEventFlags . . . . . . . . .	 0000000C	 DWord
+SMALL_RECT . . . . . . . . . . .	 00000008
+  Left . . . . . . . . . . . . .	 00000000	 Word
+  Top  . . . . . . . . . . . . .	 00000002	 Word
+  Right  . . . . . . . . . . . .	 00000004	 Word
+  Bottom . . . . . . . . . . . .	 00000006	 Word
+SYSTEMTIME . . . . . . . . . . .	 00000010
+  wYear  . . . . . . . . . . . .	 00000000	 Word
+  wMonth . . . . . . . . . . . .	 00000002	 Word
+  wDayOfWeek . . . . . . . . . .	 00000004	 Word
+  wDay . . . . . . . . . . . . .	 00000006	 Word
+  wHour  . . . . . . . . . . . .	 00000008	 Word
+  wMinute  . . . . . . . . . . .	 0000000A	 Word
+  wSecond  . . . . . . . . . . .	 0000000C	 Word
+  wMilliseconds  . . . . . . . .	 0000000E	 Word
+WINDOW_BUFFER_SIZE_RECORD  . . .	 00000004
+  dwSize . . . . . . . . . . . .	 00000000	 DWord
+
+
+Segments and Groups:
+
+                N a m e                 Size     Length   Align   Combine Class
+
+FLAT . . . . . . . . . . . . . .	GROUP
+STACK  . . . . . . . . . . . . .	32 Bit	 00001000 Para	  Stack	  'STACK'	 
+_DATA  . . . . . . . . . . . . .	32 Bit	 00002F20 Para	  Public  'DATA'	
+_TEXT  . . . . . . . . . . . . .	32 Bit	 00000A08 Para	  Public  'CODE'	
+
+
+Procedures, parameters, and locals:
+
+                N a m e                 Type     Value    Attr
+
+CloseFile  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+CloseHandle  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Clrscr . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+CreateFileA  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+CreateOutputFile . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Crlf . . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Delay  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+DumpMem  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+DumpRegs . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ExitProcess  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+FileTimeToDosDateTime  . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+FileTimeToSystemTime . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+FlushConsoleInputBuffer  . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+FormatMessageA . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetCommandLineA  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetCommandTail . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetConsoleCP . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetConsoleCursorInfo . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetConsoleMode . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetConsoleScreenBufferInfo . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetDateTime  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetFileTime  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetKeyState  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetLastError . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetLocalTime . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetMaxXY . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetMseconds  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetNumberOfConsoleInputEvents  .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetProcessHeap . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetStdHandle . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetSystemTime  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetTextColor . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetTickCount . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Gotoxy . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapAlloc  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapCreate . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapDestroy  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapFree . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapSize . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+IsDigit  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+LocalFree  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+MessageBoxA  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+MsgBoxAsk  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+MsgBox . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+OpenInputFile  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ParseDecimal32 . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ParseInteger32 . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+PeekConsoleInputA  . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Random32 . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+RandomRange  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Randomize  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadChar . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadConsoleA . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadConsoleInputA  . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadDec  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadFile . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadFloat  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadFromFile . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadHex  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadInt  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadKeyFlush . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadKey  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadString . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleCursorInfo . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleCursorPosition . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleMode . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleScreenBufferSize . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleTextAttribute  . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleTitleA . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleWindowInfo . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetFilePointer . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetLocalTime . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetTextColor . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ShowFPUStack . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Sleep  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+StrLength  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_compare  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_copy . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_length . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_trim . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_ucase  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SystemTimeToFileTime . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WaitMsg  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteBinB  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteBin . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteChar  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteConsoleA  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteConsoleOutputAttribute  . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteConsoleOutputCharacterA . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteDec . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteFile  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteFloat . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteHexB  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteHex . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteInt . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteStackFrameName  . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteStackFrame  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteString  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteToFile  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteWindowsMsg  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+clearArray . . . . . . . . . . .	P Near	 00000193 _TEXT	Length= 00000017 Public STDCALL
+endGame  . . . . . . . . . . . .	P Near	 000009EC _TEXT	Length= 0000001C Public STDCALL
+fatalChoice  . . . . . . . . . .	P Near	 0000012C _TEXT	Length= 00000067 Public STDCALL
+  _waitKeyPress  . . . . . . . .	L Near	 00000151 _TEXT	
+  ??0000 . . . . . . . . . . . .	L Near	 00000151 _TEXT	
+  _StopGame  . . . . . . . . . .	L Near	 00000170 _TEXT	
+  _ContinueGame  . . . . . . . .	L Near	 00000184 _TEXT	
+main . . . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 0000003C Public STDCALL
+moveCursor . . . . . . . . . . .	P Near	 0000003C _TEXT	Length= 00000026 Public C
+  X  . . . . . . . . . . . . . .	Word	 bp + 00000008
+  Y  . . . . . . . . . . . . . .	Word	 bp + 0000000C
+  pos  . . . . . . . . . . . . .	DWord	 bp - 00000004
+printDialogue  . . . . . . . . .	P Near	 000000B0 _TEXT	Length= 0000002D Public STDCALL
+printLaptopScreen  . . . . . . .	P Near	 000001AA _TEXT	Length= 00000141 Public STDCALL
+  _DisplayOptions  . . . . . . .	L Near	 000001D2 _TEXT	
+  ??0001 . . . . . . . . . . . .	L Near	 00000204 _TEXT	
+  ??0002 . . . . . . . . . . . .	L Near	 00000209 _TEXT	
+  _GoodPassword  . . . . . . . .	L Near	 000002B8 _TEXT	
+  _Leave . . . . . . . . . . . .	L Near	 000002EA _TEXT	
+printOptions . . . . . . . . . .	P Near	 000000DD _TEXT	Length= 0000004F Public STDCALL
+printOuijaBoard  . . . . . . . .	P Near	 00000312 _TEXT	Length= 000000EE Public STDCALL
+printPortrait  . . . . . . . . .	P Near	 000002EB _TEXT	Length= 00000027 Public STDCALL
+  _LoadPortraitPlate . . . . . .	L Near	 00000303 _TEXT	
+  _Leave . . . . . . . . . . . .	L Near	 0000030D _TEXT	
+printTextFile  . . . . . . . . .	P Near	 00000062 _TEXT	Length= 0000004E Public STDCALL
+printf . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
+runLevel0  . . . . . . . . . . .	P Near	 00000400 _TEXT	Length= 00000073 Public STDCALL
+  _DisplayOptions0 . . . . . . .	L Near	 00000402 _TEXT	
+  ??0003 . . . . . . . . . . . .	L Near	 00000418 _TEXT	
+  ??0004 . . . . . . . . . . . .	L Near	 0000041D _TEXT	
+  _DisplayOptions0_1 . . . . . .	L Near	 00000427 _TEXT	
+  ??0005 . . . . . . . . . . . .	L Near	 0000043D _TEXT	
+  ??0006 . . . . . . . . . . . .	L Near	 00000442 _TEXT	
+  _Choice0_1_2 . . . . . . . . .	L Near	 0000045D _TEXT	
+  _Choice0_2 . . . . . . . . . .	L Near	 0000045F _TEXT	
+  _NextLevel . . . . . . . . . .	L Near	 00000470 _TEXT	
+runLevel1  . . . . . . . . . . .	P Near	 00000473 _TEXT	Length= 00000098 Public STDCALL
+  _DisplayOptions0 . . . . . . .	L Near	 00000475 _TEXT	
+  ??0007 . . . . . . . . . . . .	L Near	 0000048B _TEXT	
+  ??0008 . . . . . . . . . . . .	L Near	 00000490 _TEXT	
+  _DisplayOptions0_2 . . . . . .	L Near	 000004B0 _TEXT	
+  ??0009 . . . . . . . . . . . .	L Near	 000004C6 _TEXT	
+  ??000A . . . . . . . . . . . .	L Near	 000004CB _TEXT	
+  _Choice2_2 . . . . . . . . . .	L Near	 000004E6 _TEXT	
+  _NextLevel . . . . . . . . . .	L Near	 000004FE _TEXT	
+runLevel2  . . . . . . . . . . .	P Near	 0000050B _TEXT	Length= 00000196 Public STDCALL
+  _DisplayOptions0 . . . . . . .	L Near	 0000050D _TEXT	
+  ??000B . . . . . . . . . . . .	L Near	 00000523 _TEXT	
+  ??000C . . . . . . . . . . . .	L Near	 00000528 _TEXT	
+  _Choice0_2 . . . . . . . . . .	L Near	 0000053E _TEXT	
+  _DisplayOptions1 . . . . . . .	L Near	 00000548 _TEXT	
+  ??000D . . . . . . . . . . . .	L Near	 0000055E _TEXT	
+  ??000E . . . . . . . . . . . .	L Near	 00000563 _TEXT	
+  _Choice1_2 . . . . . . . . . .	L Near	 00000579 _TEXT	
+  _DisplayOptions1_2 . . . . . .	L Near	 0000057E _TEXT	
+  ??000F . . . . . . . . . . . .	L Near	 00000594 _TEXT	
+  ??0010 . . . . . . . . . . . .	L Near	 00000599 _TEXT	
+  _Choice1_2_2 . . . . . . . . .	L Near	 000005B4 _TEXT	
+  _Choice1_2_3 . . . . . . . . .	L Near	 000005C5 _TEXT	
+  _Choice1_2_4 . . . . . . . . .	L Near	 000005DD _TEXT	
+  _Choice1_3 . . . . . . . . . .	L Near	 000005E2 _TEXT	
+  _DisplayOptions1_3 . . . . . .	L Near	 000005E7 _TEXT	
+  ??0011 . . . . . . . . . . . .	L Near	 000005FD _TEXT	
+  ??0012 . . . . . . . . . . . .	L Near	 00000602 _TEXT	
+  _DisplayOptions1_3_2_1 . . . .	L Near	 0000060C _TEXT	
+  ??0013 . . . . . . . . . . . .	L Near	 00000622 _TEXT	
+  ??0014 . . . . . . . . . . . .	L Near	 00000627 _TEXT	
+  _Choice1_3_2 . . . . . . . . .	L Near	 00000638 _TEXT	
+  _Choice1_3_3 . . . . . . . . .	L Near	 0000064E _TEXT	
+  _Choice1_3_4 . . . . . . . . .	L Near	 0000065F _TEXT	
+  _Choice1_4 . . . . . . . . . .	L Near	 00000664 _TEXT	
+  _CheckDiary  . . . . . . . . .	L Near	 0000067C _TEXT	
+  _NextLevel . . . . . . . . . .	L Near	 00000694 _TEXT	
+runLevel3  . . . . . . . . . . .	P Near	 000006A1 _TEXT	Length= 000001D5 Public STDCALL
+  _DisplayOptions0 . . . . . . .	L Near	 000006A3 _TEXT	
+  ??0015 . . . . . . . . . . . .	L Near	 000006B9 _TEXT	
+  ??0016 . . . . . . . . . . . .	L Near	 000006BE _TEXT	
+  _Choice0_2 . . . . . . . . . .	L Near	 000006E1 _TEXT	
+  _DisplayOptions0_2 . . . . . .	L Near	 000006EA _TEXT	
+  ??0017 . . . . . . . . . . . .	L Near	 00000700 _TEXT	
+  ??0018 . . . . . . . . . . . .	L Near	 00000705 _TEXT	
+  _Choice0_2_2 . . . . . . . . .	L Near	 0000071B _TEXT	
+  _DisplayOptions0_2_2 . . . . .	L Near	 00000735 _TEXT	
+  ??0019 . . . . . . . . . . . .	L Near	 0000074B _TEXT	
+  ??001A . . . . . . . . . . . .	L Near	 00000750 _TEXT	
+  _Choice0_2_2_3 . . . . . . . .	L Near	 00000770 _TEXT	
+  _Choice0_2_2_4 . . . . . . . .	L Near	 00000783 _TEXT	
+  _Choice0_2_2_5 . . . . . . . .	L Near	 0000078F _TEXT	
+  _Choice0_2_3 . . . . . . . . .	L Near	 00000794 _TEXT	
+  _DisplayOptions0_3 . . . . . .	L Near	 00000799 _TEXT	
+  _NoBookOptions . . . . . . . .	L Near	 000007AB _TEXT	
+  _NoPlateOptions  . . . . . . .	L Near	 000007BA _TEXT	
+  ??001B . . . . . . . . . . . .	L Near	 000007DB _TEXT	
+  ??001C . . . . . . . . . . . .	L Near	 000007E0 _TEXT	
+  _BookFoundOptions  . . . . . .	L Near	 00000803 _TEXT	
+  ??001D . . . . . . . . . . . .	L Near	 00000819 _TEXT	
+  ??001E . . . . . . . . . . . .	L Near	 0000081E _TEXT	
+  _Choice0_3_2 . . . . . . . . .	L Near	 00000834 _TEXT	
+  _Choice0_3_3 . . . . . . . . .	L Near	 00000845 _TEXT	
+  _Choice0_3_4 . . . . . . . . .	L Near	 0000085D _TEXT	
+  _BadChoice . . . . . . . . . .	L Near	 00000862 _TEXT	
+  _NextLevel . . . . . . . . . .	L Near	 00000869 _TEXT	
+runLevel4  . . . . . . . . . . .	P Near	 00000876 _TEXT	Length= 00000176 Public STDCALL
+  _DisplayOptions0 . . . . . . .	L Near	 00000878 _TEXT	
+  ??001F . . . . . . . . . . . .	L Near	 0000088E _TEXT	
+  ??0020 . . . . . . . . . . . .	L Near	 00000893 _TEXT	
+  _DisplayOptions0_1 . . . . . .	L Near	 000008A1 _TEXT	
+  ??0021 . . . . . . . . . . . .	L Near	 000008B7 _TEXT	
+  ??0022 . . . . . . . . . . . .	L Near	 000008BC _TEXT	
+  _Choice0_1_2 . . . . . . . . .	L Near	 000008D2 _TEXT	
+  _correctCombo  . . . . . . . .	L Near	 00000901 _TEXT	
+  _incorrectCombo  . . . . . . .	L Near	 00000910 _TEXT	
+  _Choice0_1_3 . . . . . . . . .	L Near	 0000091C _TEXT	
+  _Choice0_2 . . . . . . . . . .	L Near	 00000921 _TEXT	
+  _DisplayOptions0_2 . . . . . .	L Near	 00000926 _TEXT	
+  ??0023 . . . . . . . . . . . .	L Near	 0000093C _TEXT	
+  ??0024 . . . . . . . . . . . .	L Near	 00000941 _TEXT	
+  _Choice0_2_2 . . . . . . . . .	L Near	 00000957 _TEXT	
+  _Choice0_2_3 . . . . . . . . .	L Near	 00000968 _TEXT	
+  _DisplayOptions0_3 . . . . . .	L Near	 0000096D _TEXT	
+  ??0025 . . . . . . . . . . . .	L Near	 0000098D _TEXT	
+  ??0026 . . . . . . . . . . . .	L Near	 00000992 _TEXT	
+  _DisplayOptions0_3_1 . . . . .	L Near	 0000099C _TEXT	
+  ??0027 . . . . . . . . . . . .	L Near	 000009B2 _TEXT	
+  ??0028 . . . . . . . . . . . .	L Near	 000009B7 _TEXT	
+  _Choice0_3_2 . . . . . . . . .	L Near	 000009D0 _TEXT	
+  _Leave . . . . . . . . . . . .	L Near	 000009D5 _TEXT	
+scanf  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
+wsprintfA  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
+
+
+Symbols:
+
+                N a m e                 Type     Value    Attr
+
+@CodeSize  . . . . . . . . . . .	Number	 00000000h   
+@DataSize  . . . . . . . . . . .	Number	 00000000h   
+@Interface . . . . . . . . . . .	Number	 00000003h   
+@Model . . . . . . . . . . . . .	Number	 00000007h   
+@code  . . . . . . . . . . . . .	Text   	 _TEXT
+@data  . . . . . . . . . . . . .	Text   	 FLAT
+@fardata?  . . . . . . . . . . .	Text   	 FLAT
+@fardata . . . . . . . . . . . .	Text   	 FLAT
+@stack . . . . . . . . . . . . .	Text   	 FLAT
+ALT_MASK . . . . . . . . . . . .	Number	 00000003h   
+ARRAY_SIZE . . . . . . . . . . .	Number	 00000FA0h   
+BUFFER_SIZE  . . . . . . . . . .	Number	 00000006h   
+CAPSLOCK_ON  . . . . . . . . . .	Number	 00000080h   
+CREATE_ALWAYS  . . . . . . . . .	Number	 00000002h   
+CREATE_NEW . . . . . . . . . . .	Number	 00000001h   
+CTRL_MASK  . . . . . . . . . . .	Number	 0000000Ch   
+CreateFile . . . . . . . . . . .	Text   	 CreateFileA
+CursorPos  . . . . . . . . . . .	CONSOLE_SCREEN_BUFFER_INFO  00000000 _DATA	
+DEFAULT_DISPLAY  . . . . . . . .	Text   	 15
+DELAY_TIME . . . . . . . . . . .	Number	 000004B0h   
+DIALOGUE_DISPLAY . . . . . . . .	Text   	 9
+DO_NOT_SHARE . . . . . . . . . .	Number	 00000000h   
+ENABLE_ECHO_INPUT  . . . . . . .	Number	 00000004h   
+ENABLE_LINE_INPUT  . . . . . . .	Number	 00000002h   
+ENABLE_MOUSE_INPUT . . . . . . .	Number	 00000010h   
+ENABLE_PROCESSED_INPUT . . . . .	Number	 00000001h   
+ENABLE_PROCESSED_OUTPUT  . . . .	Number	 00000001h   
+ENABLE_WINDOW_INPUT  . . . . . .	Number	 00000008h   
+ENABLE_WRAP_AT_EOL_OUTPUT  . . .	Number	 00000002h   
+ENHANCED_KEY . . . . . . . . . .	Number	 00000100h   
+FALSE  . . . . . . . . . . . . .	Number	 00000000h   
+FATAL_DISPLAY  . . . . . . . . .	Text   	 12
+FILE_APPEND_DATA . . . . . . . .	Number	 00000004h   
+FILE_ATTRIBUTE_ARCHIVE . . . . .	Number	 00000020h   
+FILE_ATTRIBUTE_COMPRESSED  . . .	Number	 00000800h   
+FILE_ATTRIBUTE_DEVICE  . . . . .	Number	 00000040h   
+FILE_ATTRIBUTE_DIRECTORY . . . .	Number	 00000010h   
+FILE_ATTRIBUTE_ENCRYPTED . . . .	Number	 00004000h   
+FILE_ATTRIBUTE_HIDDEN  . . . . .	Number	 00000002h   
+FILE_ATTRIBUTE_NORMAL  . . . . .	Number	 00000080h   
+FILE_ATTRIBUTE_NOT_CONTENT_INDEXED .	Number	 00002000h   
+FILE_ATTRIBUTE_OFFLINE . . . . .	Number	 00001000h   
+FILE_ATTRIBUTE_READONLY  . . . .	Number	 00000001h   
+FILE_ATTRIBUTE_REPARSE_POINT . .	Number	 00000400h   
+FILE_ATTRIBUTE_SPARSE_FILE . . .	Number	 00000200h   
+FILE_ATTRIBUTE_SYSTEM  . . . . .	Number	 00000004h   
+FILE_ATTRIBUTE_TEMPORARY . . . .	Number	 00000100h   
+FILE_BEGIN . . . . . . . . . . .	Number	 00000000h   
+FILE_CURRENT . . . . . . . . . .	Number	 00000001h   
+FILE_DELETE_CHILD  . . . . . . .	Number	 00000040h   
+FILE_END . . . . . . . . . . . .	Number	 00000002h   
+FILE_READ_DATA . . . . . . . . .	Number	 00000001h   
+FILE_SHARE_DELETE  . . . . . . .	Number	 00000004h   
+FILE_SHARE_READ  . . . . . . . .	Number	 00000001h   
+FILE_SHARE_WRITE . . . . . . . .	Number	 00000002h   
+FILE_WRITE_DATA  . . . . . . . .	Number	 00000002h   
+FOCUS_EVENT  . . . . . . . . . .	Number	 00000010h   
+FORMAT_MESSAGE_ALLOCATE_BUFFER .	Number	 00000100h   
+FORMAT_MESSAGE_FROM_SYSTEM . . .	Number	 00001000h   
+FormatMessage  . . . . . . . . .	Text   	 FormatMessageA
+GENERIC_ALL  . . . . . . . . . .	Number	 10000000h   
+GENERIC_EXECUTE  . . . . . . . .	Number	 20000000h   
+GENERIC_READ . . . . . . . . . .	Number	 -80000000h   
+GENERIC_WRITE  . . . . . . . . .	Number	 40000000h   
+GetCommandLine . . . . . . . . .	Text   	 GetCommandLineA
+HANDLE . . . . . . . . . . . . .	Text   	 DWORD
+HEAP_GENERATE_EXCEPTIONS . . . .	Number	 00000004h   
+HEAP_GROWABLE  . . . . . . . . .	Number	 00000002h   
+HEAP_NO_SERIALIZE  . . . . . . .	Number	 00000001h   
+HEAP_REALLOC_IN_PLACE_ONLY . . .	Number	 00000010h   
+HEAP_ZERO_MEMORY . . . . . . . .	Number	 00000008h   
+IDABORT  . . . . . . . . . . . .	Number	 00000003h   
+IDCANCEL . . . . . . . . . . . .	Number	 00000002h   
+IDCLOSE  . . . . . . . . . . . .	Number	 00000008h   
+IDCONTINUE . . . . . . . . . . .	Number	 0000000Bh   
+IDHELP . . . . . . . . . . . . .	Number	 00000009h   
+IDIGNORE . . . . . . . . . . . .	Number	 00000005h   
+IDNO . . . . . . . . . . . . . .	Number	 00000007h   
+IDOK . . . . . . . . . . . . . .	Number	 00000001h   
+IDRETRY  . . . . . . . . . . . .	Number	 00000004h   
+IDTIMEOUT  . . . . . . . . . . .	Number	 00007D00h   
+IDTRYAGAIN . . . . . . . . . . .	Number	 0000000Ah   
+IDYES  . . . . . . . . . . . . .	Number	 00000006h   
+INVALID_HANDLE_VALUE . . . . . .	Number	 -00000001h   
+KBDOWN_FLAG  . . . . . . . . . .	Number	 00000001h   
+KEY_EVENT  . . . . . . . . . . .	Number	 00000001h   
+KEY_MASKS  . . . . . . . . . . .	Number	 0000001Fh   
+LEFT_ALT_PRESSED . . . . . . . .	Number	 00000002h   
+LEFT_CTRL_PRESSED  . . . . . . .	Number	 00000008h   
+MB_ABORTRETRYIGNORE  . . . . . .	Number	 00000002h   
+MB_APPLMODAL . . . . . . . . . .	Number	 00000000h   
+MB_CANCELTRYCONTINUE . . . . . .	Number	 00000006h   
+MB_DEFBUTTON1  . . . . . . . . .	Number	 00000000h   
+MB_DEFBUTTON2  . . . . . . . . .	Number	 00000100h   
+MB_DEFBUTTON3  . . . . . . . . .	Number	 00000200h   
+MB_DEFBUTTON4  . . . . . . . . .	Number	 00000300h   
+MB_HELP  . . . . . . . . . . . .	Number	 00004000h   
+MB_ICONASTERISK  . . . . . . . .	Number	 00000040h   
+MB_ICONERROR . . . . . . . . . .	Number	 00000010h   
+MB_ICONEXCLAMATION . . . . . . .	Number	 00000030h   
+MB_ICONHAND  . . . . . . . . . .	Number	 00000010h   
+MB_ICONINFORMATION . . . . . . .	Number	 00000040h   
+MB_ICONQUESTION  . . . . . . . .	Number	 00000020h   
+MB_ICONSTOP  . . . . . . . . . .	Number	 00000010h   
+MB_ICONWARNING . . . . . . . . .	Number	 00000030h   
+MB_OKCANCEL  . . . . . . . . . .	Number	 00000001h   
+MB_OK  . . . . . . . . . . . . .	Number	 00000000h   
+MB_RETRYCANCEL . . . . . . . . .	Number	 00000005h   
+MB_SYSTEMMODAL . . . . . . . . .	Number	 00001000h   
+MB_TASKMODAL . . . . . . . . . .	Number	 00002000h   
+MB_USERICON  . . . . . . . . . .	Number	 00000080h   
+MB_YESNOCANCEL . . . . . . . . .	Number	 00000003h   
+MB_YESNO . . . . . . . . . . . .	Number	 00000004h   
+MENU_EVENT . . . . . . . . . . .	Number	 00000008h   
+MOUSE_EVENT  . . . . . . . . . .	Number	 00000002h   
+MessageBox . . . . . . . . . . .	Text   	 MessageBoxA
+NULL . . . . . . . . . . . . . .	Number	 00000000h   
+NUMLOCK_ON . . . . . . . . . . .	Number	 00000020h   
+OPEN_ALWAYS  . . . . . . . . . .	Number	 00000004h   
+OPEN_EXISTING  . . . . . . . . .	Number	 00000003h   
+OPTIONS_DISPLAY  . . . . . . . .	Text   	 2
+PeekConsoleInput . . . . . . . .	Text   	 PeekConsoleInputA
+RIGHT_ALT_PRESSED  . . . . . . .	Number	 00000001h   
+RIGHT_CTRL_PRESSED . . . . . . .	Number	 00000004h   
+ReadConsoleInput . . . . . . . .	Text   	 ReadConsoleInputA
+ReadConsole  . . . . . . . . . .	Text   	 ReadConsoleA
+SCROLLLOCK_ON  . . . . . . . . .	Number	 00000040h   
+SHIFT_MASK . . . . . . . . . . .	Number	 00000010h   
+SHIFT_PRESSED  . . . . . . . . .	Number	 00000010h   
+STD_ERROR_HANDLE . . . . . . . .	Number	 -0000000Ch   
+STD_INPUT_HANDLE . . . . . . . .	Number	 -0000000Ah   
+STD_OUTPUT_HANDLE  . . . . . . .	Number	 -0000000Bh   
+SetConsoleTitle  . . . . . . . .	Text   	 SetConsoleTitleA
+TAB  . . . . . . . . . . . . . .	Number	 00000009h   
+TRUE . . . . . . . . . . . . . .	Number	 00000001h   
+TRUNCATE_EXISTING  . . . . . . .	Number	 00000005h   
+VK_11  . . . . . . . . . . . . .	Number	 000000BDh   
+VK_12  . . . . . . . . . . . . .	Number	 000000BBh   
+VK_ADD . . . . . . . . . . . . .	Number	 0000006Bh   
+VK_BACK  . . . . . . . . . . . .	Number	 00000008h   
+VK_CANCEL  . . . . . . . . . . .	Number	 00000003h   
+VK_CAPITAL . . . . . . . . . . .	Number	 00000014h   
+VK_CLEAR . . . . . . . . . . . .	Number	 0000000Ch   
+VK_CONTROL . . . . . . . . . . .	Number	 00000011h   
+VK_DECIMAL . . . . . . . . . . .	Number	 0000006Eh   
+VK_DELETE  . . . . . . . . . . .	Number	 0000002Eh   
+VK_DIVIDE  . . . . . . . . . . .	Number	 0000006Fh   
+VK_DOWN  . . . . . . . . . . . .	Number	 00000028h   
+VK_END . . . . . . . . . . . . .	Number	 00000023h   
+VK_ESCAPE  . . . . . . . . . . .	Number	 0000001Bh   
+VK_EXECUTE . . . . . . . . . . .	Number	 0000002Bh   
+VK_F10 . . . . . . . . . . . . .	Number	 00000079h   
+VK_F11 . . . . . . . . . . . . .	Number	 0000007Ah   
+VK_F12 . . . . . . . . . . . . .	Number	 0000007Bh   
+VK_F13 . . . . . . . . . . . . .	Number	 0000007Ch   
+VK_F14 . . . . . . . . . . . . .	Number	 0000007Dh   
+VK_F15 . . . . . . . . . . . . .	Number	 0000007Eh   
+VK_F16 . . . . . . . . . . . . .	Number	 0000007Fh   
+VK_F17 . . . . . . . . . . . . .	Number	 00000080h   
+VK_F18 . . . . . . . . . . . . .	Number	 00000081h   
+VK_F19 . . . . . . . . . . . . .	Number	 00000082h   
+VK_F1  . . . . . . . . . . . . .	Number	 00000070h   
+VK_F20 . . . . . . . . . . . . .	Number	 00000083h   
+VK_F21 . . . . . . . . . . . . .	Number	 00000084h   
+VK_F22 . . . . . . . . . . . . .	Number	 00000085h   
+VK_F23 . . . . . . . . . . . . .	Number	 00000086h   
+VK_F24 . . . . . . . . . . . . .	Number	 00000087h   
+VK_F2  . . . . . . . . . . . . .	Number	 00000071h   
+VK_F3  . . . . . . . . . . . . .	Number	 00000072h   
+VK_F4  . . . . . . . . . . . . .	Number	 00000073h   
+VK_F5  . . . . . . . . . . . . .	Number	 00000074h   
+VK_F6  . . . . . . . . . . . . .	Number	 00000075h   
+VK_F7  . . . . . . . . . . . . .	Number	 00000076h   
+VK_F8  . . . . . . . . . . . . .	Number	 00000077h   
+VK_F9  . . . . . . . . . . . . .	Number	 00000078h   
+VK_HELP  . . . . . . . . . . . .	Number	 0000002Fh   
+VK_HOME  . . . . . . . . . . . .	Number	 00000024h   
+VK_INSERT  . . . . . . . . . . .	Number	 0000002Dh   
+VK_LBUTTON . . . . . . . . . . .	Number	 00000001h   
+VK_LCONTROL  . . . . . . . . . .	Number	 000000A2h   
+VK_LEFT  . . . . . . . . . . . .	Number	 00000025h   
+VK_LMENU . . . . . . . . . . . .	Number	 000000A4h   
+VK_LSHIFT  . . . . . . . . . . .	Number	 000000A0h   
+VK_MENU  . . . . . . . . . . . .	Number	 00000012h   
+VK_MULTIPLY  . . . . . . . . . .	Number	 0000006Ah   
+VK_NEXT  . . . . . . . . . . . .	Number	 00000022h   
+VK_NUMLOCK . . . . . . . . . . .	Number	 00000090h   
+VK_NUMPAD0 . . . . . . . . . . .	Number	 00000060h   
+VK_NUMPAD1 . . . . . . . . . . .	Number	 00000061h   
+VK_NUMPAD2 . . . . . . . . . . .	Number	 00000062h   
+VK_NUMPAD3 . . . . . . . . . . .	Number	 00000063h   
+VK_NUMPAD4 . . . . . . . . . . .	Number	 00000064h   
+VK_NUMPAD5 . . . . . . . . . . .	Number	 00000065h   
+VK_NUMPAD6 . . . . . . . . . . .	Number	 00000066h   
+VK_NUMPAD7 . . . . . . . . . . .	Number	 00000067h   
+VK_NUMPAD8 . . . . . . . . . . .	Number	 00000068h   
+VK_NUMPAD9 . . . . . . . . . . .	Number	 00000069h   
+VK_PAUSE . . . . . . . . . . . .	Number	 00000013h   
+VK_PRINT . . . . . . . . . . . .	Number	 0000002Ah   
+VK_PRIOR . . . . . . . . . . . .	Number	 00000021h   
+VK_RBUTTON . . . . . . . . . . .	Number	 00000002h   
+VK_RCONTROL  . . . . . . . . . .	Number	 000000A3h   
+VK_RETURN  . . . . . . . . . . .	Number	 0000000Dh   
+VK_RIGHT . . . . . . . . . . . .	Number	 00000027h   
+VK_RMENU . . . . . . . . . . . .	Number	 000000A5h   
+VK_RSHIFT  . . . . . . . . . . .	Number	 000000A1h   
+VK_SCROLL  . . . . . . . . . . .	Number	 00000091h   
+VK_SEPARATER . . . . . . . . . .	Number	 0000006Ch   
+VK_SHIFT . . . . . . . . . . . .	Number	 00000010h   
+VK_SNAPSHOT  . . . . . . . . . .	Number	 0000002Ch   
+VK_SPACE . . . . . . . . . . . .	Number	 00000020h   
+VK_SUBTRACT  . . . . . . . . . .	Number	 0000006Dh   
+VK_TAB . . . . . . . . . . . . .	Number	 00000009h   
+VK_UP  . . . . . . . . . . . . .	Number	 00000026h   
+WINDOW_BUFFER_SIZE_EVENT . . . .	Number	 00000004h   
+WriteConsoleOutputCharacter  . .	Text   	 WriteConsoleOutputCharacterA
+WriteConsole . . . . . . . . . .	Text   	 WriteConsoleA
+anniversaryNote  . . . . . . . .	Byte	 000010BD _DATA	
+black  . . . . . . . . . . . . .	Number	 00000000h   
+blue . . . . . . . . . . . . . .	Number	 00000001h   
+brown  . . . . . . . . . . . . .	Number	 00000006h   
+captainBook  . . . . . . . . . .	Byte	 000010D1 _DATA	
+choice_prompt  . . . . . . . . .	Byte	 0000001E _DATA	
+cursorX  . . . . . . . . . . . .	Word	 00000016 _DATA	
+cursorY  . . . . . . . . . . . .	Word	 00000018 _DATA	
+cyan . . . . . . . . . . . . . .	Number	 00000003h   
+exit . . . . . . . . . . . . . .	Text   	 INVOKE ExitProcess,0
+fatal_prompt . . . . . . . . . .	Byte	 0000002E _DATA	
+gameOver . . . . . . . . . . . .	Byte	 000010E1 _DATA	
+gray . . . . . . . . . . . . . .	Number	 00000008h   
+green  . . . . . . . . . . . . .	Number	 00000002h   
+hStdOut  . . . . . . . . . . . .	DWord	 0000001A _DATA	
+instructions . . . . . . . . . .	Byte	 000010EE _DATA	
+introduction . . . . . . . . . .	Byte	 000011F7 _DATA	
+laptop_diary_file  . . . . . . .	Byte	 00000089 _DATA	
+laptop_login_file  . . . . . . .	Byte	 0000007F _DATA	
+level0_options0_choice1_options 	Byte	 00001396 _DATA	
+level0_options0_choice2_dialogue .	Byte	 00001436 _DATA	
+level0_options0_options1_choice1_dialogue  Byte	    00001404 _DATA	
+level0_options0  . . . . . . . .	Byte	 0000130E _DATA	
+level1_keyFound  . . . . . . . .	Word	 00001487 _DATA	
+level1_options0_choice1_key  . .	Byte	 0000151A _DATA	
+level1_options0_choice1_noKey  .	Byte	 000014DD _DATA	
+level1_options0_choice2_options 	Byte	 00001555 _DATA	
+level1_options0_options2_choice1_dialogue  Byte	    000015D9 _DATA	
+level1_options0_options2_choice2_dialogue  Byte	    000015FB _DATA	
+level1_options0  . . . . . . . .	Byte	 00001489 _DATA	
+level2_diaryFound  . . . . . . .	Byte	 00001637 _DATA	
+level2_flashlightFound . . . . .	Byte	 00001638 _DATA	
+level2_options0_choice1_dialgoue .	Byte	 000016BB _DATA	
+level2_options0_choice2_dialgoue .	Byte	 00001732 _DATA	
+level2_options0  . . . . . . . .	Byte	 00001639 _DATA	
+level2_options1_choice1_dialogue .	Byte	 0000192C _DATA	
+level2_options1_choice4_nextLevel 	Byte	 00001D7C _DATA	
+level2_options1_choice4_noDiary 	Byte	 00001D1F _DATA	
+level2_options1_choice4_noFlashlight .	Byte	 00001C6D _DATA	
+level2_options1_options2_choice1_badPassword . Byte     00001A47 _DATA	
+level2_options1_options2_choice1_clear . Byte	  00001A58 _DATA	
+level2_options1_options2_choice1_dialogue  Byte	    000019F3 _DATA	
+level2_options1_options2_choice1_enterPassword . DWord	  00001A43 _DATA	
+level2_options1_options2_choice2_dialogue  Byte	    00001A69 _DATA	
+level2_options1_options2_choice3_dialogue  Byte	    00001AA1 _DATA	
+level2_options1_options2_options1 	Byte	 00001A12 _DATA	
+level2_options1_options2 . . . .	Byte	 00001960 _DATA	
+level2_options1_options3_choice2_dialogue  Byte	    00001BD9 _DATA	
+level2_options1_options3_choice3_dialogue  Byte	    00001C60 _DATA	
+level2_options1_options3_options1 	Byte	 00001B7A _DATA	
+level2_options1_options3 . . . .	Byte	 00001AD4 _DATA	
+level2_options1  . . . . . . . .	Byte	 000017E2 _DATA	
+level2_password  . . . . . . . .	DWord	 00001633 _DATA	
+level3_bookFound . . . . . . . .	Byte	 00001E35 _DATA	
+level3_doorFound . . . . . . . .	Byte	 00001E37 _DATA	
+level3_nameFound . . . . . . . .	Byte	 00001E36 _DATA	
+level3_options0_choice1_noDoor .	Byte	 00001F16 _DATA	
+level3_options0_choice1_secretDoor .	Byte	 00001F4B _DATA	
+level3_options0_choice2_options 	Byte	 00001FB2 _DATA	
+level3_options0_choice3_dialogue .	Byte	 000023D2 _DATA	
+level3_options0_choice3_options_book .	Byte	 0000248E _DATA	
+level3_options0_choice3_options_noPlate  Byte	  000022D5 _DATA	
+level3_options0_options2_choice1_dialogue  Byte	    00002074 _DATA	
+level3_options0_options2_choice2_dialogue  Byte	    000020C3 _DATA	
+level3_options0_options2_choice2_options . Byte	    0000212A _DATA	
+level3_options0_options2_correctBook .	Byte	 00002212 _DATA	
+level3_options0_options2_incorrectBook . Byte	  0000228B _DATA	
+level3_options0_options3_choice1 .	Byte	 00002579 _DATA	
+level3_options0_options3_choice2 .	Byte	 000025C9 _DATA	
+level3_options0_options3_choice3 .	Byte	 00002655 _DATA	
+level3_options0  . . . . . . . .	Byte	 00001E38 _DATA	
+level4_combo . . . . . . . . . .	Byte	 000026BB _DATA	
+level4_dialogue0 . . . . . . . .	Byte	 000026C1 _DATA	
+level4_options0_choice1_options 	Byte	 00002820 _DATA	
+level4_options0_choice2_options 	Byte	 000029C2 _DATA	
+level4_options0_choice3_options 	Byte	 00002BCF _DATA	
+level4_options0_options1_choice2_combo . Byte	  00002938 _DATA	
+level4_options0_options1_choice2_promptCombo . Byte     0000293E _DATA	
+level4_options0_options1_choice2_rightCombo  Byte     00002992 _DATA	
+level4_options0_options1_choice2_wrongCombo  Byte     00002978 _DATA	
+level4_options0_options2_choice1 .	Byte	 00002B04 _DATA	
+level4_options0_options2_choice2 .	Byte	 00002B78 _DATA	
+level4_options0_options3_dialogue 	Byte	 00002D7E _DATA	
+level4_options0_options3_options .	Byte	 00002C4E _DATA	
+level4_options0  . . . . . . . .	Byte	 00002729 _DATA	
+level4_winner_p1 . . . . . . . .	Byte	 00002DCB _DATA	
+level4_winner_p2 . . . . . . . .	Byte	 00002E8D _DATA	
+lightBlue  . . . . . . . . . . .	Number	 00000009h   
+lightCyan  . . . . . . . . . . .	Number	 0000000Bh   
+lightGray  . . . . . . . . . . .	Number	 00000007h   
+lightGreen . . . . . . . . . . .	Number	 0000000Ah   
+lightMagenta . . . . . . . . . .	Number	 0000000Dh   
+lightRed . . . . . . . . . . . .	Number	 0000000Ch   
+magenta  . . . . . . . . . . . .	Number	 00000005h   
+ouijaBoard . . . . . . . . . . .	Byte	 0000107C _DATA	
+ouijaE . . . . . . . . . . . . .	Byte	 000010A7 _DATA	
+ouijaO . . . . . . . . . . . . .	Byte	 00001091 _DATA	
+ouijaR . . . . . . . . . . . . .	Byte	 000010B2 _DATA	
+ouijaT . . . . . . . . . . . . .	Byte	 00001086 _DATA	
+ouijaW . . . . . . . . . . . . .	Byte	 0000109C _DATA	
+portrait_file  . . . . . . . . .	Byte	 000000A7 _DATA	
+portrait_plate_file  . . . . . .	Byte	 000000B7 _DATA	
+red  . . . . . . . . . . . . . .	Number	 00000004h   
+splash_file  . . . . . . . . . .	Byte	 00000070 _DATA	
+sticky_note_file . . . . . . . .	Byte	 00000098 _DATA	
+txtArray . . . . . . . . . . . .	Byte	 000000CC _DATA	
+txtPuzzle  . . . . . . . . . . .	Byte	 0000106D _DATA	
+white  . . . . . . . . . . . . .	Number	 0000000Fh   
+wsprintf . . . . . . . . . . . .	Text   	 wsprintfA
+yellow . . . . . . . . . . . . .	Number	 0000000Eh   
+
+	   0 Warnings
+	   0 Errors
