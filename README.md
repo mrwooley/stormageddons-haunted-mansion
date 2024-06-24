@@ -17,7 +17,7 @@ have the option to retry from the previous set of options. Occassionally, you ma
 You can play using the executable in the Release.zip folder.
 
 ## Walkthrough
-![Watch a walkthrough](https://drive.google.com/file/d/1mK5jSACI_gphJt-nWX1-FqG6vMv7Pofr/view?usp=sharing)
+[Watch a walkthrough](https://drive.google.com/file/d/1mK5jSACI_gphJt-nWX1-FqG6vMv7Pofr/view?usp=sharing)
 ![Screenshot](/Assets/gameStart.jpg)
 
 ## Acknowledgements
