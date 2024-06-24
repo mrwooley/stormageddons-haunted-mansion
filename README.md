@@ -16,11 +16,13 @@ have the option to retry from the previous set of options. Occassionally, you ma
 
 You can play using the executable in the Release.zip folder.
 
+<figure class="video_container">
+  <video controls="true" allowfullscreen="true" poster="/Assets/gameStart.jpg">
+    <source src="https://drive.google.com/file/d/1mK5jSACI_gphJt-nWX1-FqG6vMv7Pofr/view?usp=sharing" type="video/mp4">
+  </video>
+</figure>
 
-[![Walkthrough] //Title
-(/Assets/gameStart.jpg) // Thumbnail
-(https://drive.google.com/file/d/1mK5jSACI_gphJt-nWX1-FqG6vMv7Pofr/view?usp=sharing) // Video Link
-]
+[![Walkthrough](/Assets/gameStart.jpg)(https://drive.google.com/file/d/1mK5jSACI_gphJt-nWX1-FqG6vMv7Pofr/view?usp=sharing)]
 
 ## Acknowledgements
 A big thank you to the contributors at ASCII Art Archive! I utlized a few of their ASCII artworks as a starting point for some of the best ASCII art in the game!
